@@ -7,4 +7,12 @@ theme: jekyll-theme-minimal
 markdown: kramdown
 kramdown:
   parse_block_html: true
+  typographic_syms:
+    ndash: '--'
+    mdash: '---'
+    laquo_space: '<< '
+    raquo_space: ' >>'
+    laquo: '<<'
+    raquo: '>>'
+    hellip: '...'
 

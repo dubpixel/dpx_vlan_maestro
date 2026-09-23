@@ -39,3 +39,6 @@ fp-info-cache
 # kicad local profile
 *.kicad_prl
 agentic_prompts.md
+
+# local-only archived docs (kept on disk, not tracked)
+docs/archive/
