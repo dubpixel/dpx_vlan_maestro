@@ -26,7 +26,7 @@
 #
 # ================================================================================
 # PROJECT: DPX_VLAN_MAESTRO
-# VERSION: 1.94
+# VERSION: 2.0
 # ================================================================================
 #
 # [File-specific information]
@@ -37,7 +37,7 @@
 # Dependencies: Windows PowerShell Hyper-V module, administrative privileges.
 #
 # TODO LIST:
-# 1. Test "nuke all" feature thoroughly on Hyper-V host with real network adapters
+# 1. COMPLETED: Test "nuke all" feature thoroughly on Hyper-V host with real network adapters
 # 2. Test actual network connectivity and VLAN functionality with physical network
 # 3. COMPLETED: Add input validation for IP octets and VLAN selections
 # 4. COMPLETED: Consider making delay timing configurable via command line parameter
@@ -96,7 +96,7 @@ Write-Host "║                           ██║  ██║██╔═══
 Write-Host "║                           ██████╔╝██║     ██╔╝ ██╗                           ║" -ForegroundColor Cyan
 Write-Host "║                           ╚═════╝ ╚═╝     ╚═╝  ╚═╝                           ║" -ForegroundColor Cyan
 Write-Host "║                                                                              ║" -ForegroundColor Cyan
-Write-Host "║                             VLAN MAESTRO v1.94                               ║" -ForegroundColor Yellow
+Write-Host "║                             VLAN MAESTRO v2.0                                ║" -ForegroundColor Yellow
 Write-Host "║                      Hyper-V Network Configuration Tool                      ║" -ForegroundColor Yellow
 Write-Host "╚══════════════════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
 Write-Host ""
@@ -107,7 +107,7 @@ Clear-Host
 
 # Warning Message
 Write-Host "╔══════════════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-Write-Host "║                             VLAN MAESTRO v1.94                               ║" -ForegroundColor Yellow
+Write-Host "║                             VLAN MAESTRO v2.0                                ║" -ForegroundColor Yellow
 Write-Host "║                      Hyper-V Network Configuration Tool                      ║" -ForegroundColor Yellow
 Write-Host "╠══════════════════════════════════════════════════════════════════════════════╣" -ForegroundColor Red
 Write-Host "║                              ⚠️  WARNING ⚠️                                    ║" -ForegroundColor Red
@@ -250,14 +250,15 @@ $hardcoded4Wall = @{
         @{Name="210_sACN"; VlanId=210},
         @{Name="214_10gMedia"; VlanId=214},
         @{Name="216_10gMedia2"; VlanId=216},
-        @{Name="206_LED"; VlanId=206}
+        @{Name="206_LED"; VlanId=206},
+        @{Name="218_Dante"; VlanId=218}
     )
     ipBase = "10.{vlan}.{third}.{fourth}"
     ipPrompts = @("third", "fourth")
     ipDefaults = @{third=13}
     subnet = "255.254.0.0"
 }
-$hardcodedAeonPoint = @{
+$hardcodedDapper = @{
     vlans = @(
         @{Name="10_Server_A"; VlanId=10},
         @{Name="20_Server_B"; VlanId=20},
@@ -272,7 +273,7 @@ $hardcodedAeonPoint = @{
     )
     ipBase = "10.{vlan}.{third}.{fourth}"
     ipPrompts = @("third", "fourth")
-    ipDefaults = @{third=13}
+    ipDefaults = @{third=3}
     subnet = "255.255.252.0"
 }
 $hardcodedDesert = @{
@@ -303,7 +304,7 @@ if (Test-Path $vlanConfigPath) {
     try {
         $vlanConfig = Get-Content $vlanConfigPath -Raw | ConvertFrom-Json
         $vlans4Wall = $vlanConfig.vlanSets."4Wall"
-        $vlansAeonPoint = $vlanConfig.vlanSets.AeonPoint
+        $vlansDapper = $vlanConfig.vlanSets.Dapper
         $vlansDesert = $vlanConfig.vlanSets.Desert
         Write-Host "Loaded VLAN configurations from $vlanConfigPath"
     }
@@ -336,9 +337,9 @@ if ($vlanConfig -and $vlanConfig.vlanSets) {
 } else {
     # Fallback to hardcoded sets
     $vlanSets["4Wall"] = $hardcoded4Wall
-    $vlanSets["AeonPoint"] = $hardcodedAeonPoint
+    $vlanSets["Dapper"] = $hardcodedDapper
     $vlanSets["Desert"] = $hardcodedDesert
-    $vlanSetNames = @("4Wall", "AeonPoint", "Desert")
+    $vlanSetNames = @("4Wall", "Dapper", "Desert")
 }
 
 # Prompt for VLAN set dynamically
@@ -409,7 +410,7 @@ if ($choiceIndex -ge 0 -and $choiceIndex -lt $vlanSetNames.Count) {
 $validModes = @{
     "1" = @{ name = "Normal"; description = "Normal (create switch and adapters, then IP)"; ipOnly = $false; nukeAll = $false }
     "2" = @{ name = "IP only"; description = "IP only (skip creation, only assign IPs)"; ipOnly = $true; nukeAll = $false }
-    "3" = @{ name = "Nuke all"; description = "Nuke all (remove all virtual switches except default)**CURRENTLY IN TESTING**"; ipOnly = $false; nukeAll = $true }
+    "3" = @{ name = "Nuke all"; description = "Nuke all (remove all virtual switches except default)"; ipOnly = $false; nukeAll = $true }
 }
 Write-Host "═══════════════════════════════════════"
 # Prompt for mode

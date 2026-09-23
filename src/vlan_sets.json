@@ -7,14 +7,15 @@
         {"Name": "210_sACN", "VlanId": 210},
         {"Name": "214_10gMedia", "VlanId": 214},
         {"Name": "216_10gMedia2", "VlanId": 216},
-        {"Name": "206_LED", "VlanId": 206}
+        {"Name": "206_LED", "VlanId": 206},
+        {"Name": "218_Dante", "VlanId": 218}
       ],
       "ipBase": "10.{vlan}.{third}.{fourth}",
       "ipPrompts": ["third", "fourth"],
       "ipDefaults": {"third": 13},
       "subnet": "255.254.0.0"
     },
-    "AeonPoint": {
+    "Dapper": {
       "vlans": [
         {"Name": "10_Server_A", "VlanId": 10},
         {"Name": "20_Server_B", "VlanId": 20},
