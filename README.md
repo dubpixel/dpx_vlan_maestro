@@ -79,7 +79,7 @@
 <summary><h3>About The Project</h3></summary>
 DPX_VLAN_MAESTRO is a comprehensive PowerShell automation script for Windows Hyper-V environments. It simplifies the complex process of setting up virtual network infrastructure by creating virtual switches, VLAN-tagged network adapters, and assigning static IP addresses according to facility-specific configurations.
 
-The script supports multiple facility types (4Wall, Dapper, Desert, and custom configurations) with dynamic VLAN set loading from external JSON files. It includes robust validation, safety features, and multiple operation modes to handle different network management scenarios.
+The script supports multiple facility types (4Wall, Dapper, Desert, HIVE, and custom configurations) with dynamic VLAN set loading from external JSON files. It includes robust validation, safety features, and multiple operation modes to handle different network management scenarios.
 
 **Key Capabilities:**
 - **Dynamic Configuration**: Load VLAN sets from external JSON files without code changes
@@ -95,7 +95,7 @@ The script supports multiple facility types (4Wall, Dapper, Desert, and custom c
 
 ### 🔧 **Dynamic VLAN Configuration**
 - Load facility-specific VLAN sets from external JSON files
-- Support for multiple facility types (4Wall, Dapper, Desert, custom)
+- Support for multiple facility types (4Wall, Dapper, Desert, HIVE, custom)
 - No code changes required to add new configurations
 
 ### 🛡️ **Advanced IP Management**
@@ -357,7 +357,7 @@ At completion, the script displays:
 
 1. **Select VLAN Set**
    - Script automatically loads all available VLAN sets from `vlan_sets.json`
-   - Choose from any configured facility (4Wall, Dapper, Desert, or custom sets)
+   - Choose from any configured facility (4Wall, Dapper, Desert, HIVE, or custom sets)
    - Each set contains predefined VLAN configurations
 
 2. **Select Mode**
@@ -407,8 +407,9 @@ Available VLAN sets:
 1. 4Wall (7 VLANs)
 2. Dapper (10 VLANs)
 3. Desert (13 VLANs)
-4. ExampleFacility (3 VLANs)
-Enter choice (1-4): 2
+4. HIVE (17 VLANs)
+5. ExampleFacility (3 VLANs)
+Enter choice (1-5): 2
 Using Dapper VLAN set (10 VLANs).
 
 Select mode:
@@ -483,7 +484,8 @@ Available VLAN sets:
 1. 4Wall (7 VLANs)
 2. Dapper (10 VLANs)
 3. Desert (13 VLANs)
-Enter choice (1-4): 3
+4. HIVE (17 VLANs)
+Enter choice (1-5): 3
 Using Desert VLAN set (13 VLANs).
 
 Select mode:
@@ -515,7 +517,8 @@ Available VLAN sets:
 1. 4Wall (7 VLANs)
 2. Dapper (10 VLANs)
 3. Desert (13 VLANs)
-Enter choice (1-4): 1
+4. HIVE (17 VLANs)
+Enter choice (1-5): 1
 
 Select mode:
 1. Normal (create switch and adapters, then IP)
@@ -564,9 +567,10 @@ Available VLAN sets:
 1. 4Wall (7 VLANs)
 2. Dapper (10 VLANs)
 3. Desert (13 VLANs)
-4. ExampleFacility (3 VLANs)
-5. StudioB (3 VLANs)
-Enter choice (1-5): 5
+4. HIVE (17 VLANs)
+5. ExampleFacility (3 VLANs)
+6. StudioB (3 VLANs)
+Enter choice (1-6): 6
 Using StudioB VLAN set (3 VLANs).
 
 # ... select mode, NIC, switch name ...
@@ -694,7 +698,7 @@ If you encounter issues not covered here:
 - [x] Subnet-aware IP validation
 - [x] Configuration summary output
 - [x] Dynamic IP prompting with defaults
-- [x] Multiple facility support (4Wall, Dapper, Desert, custom)
+- [x] Multiple facility support (4Wall, Dapper, Desert, HIVE, custom)
 - [x] DHCP vs Static IP configuration choice
 
 ### 🔄 **In Progress**

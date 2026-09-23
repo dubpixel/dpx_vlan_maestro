@@ -46,7 +46,7 @@ package manager — everything lives in `src/`.
   gracefully to hardcoded values if the file is missing or malformed —
   don't remove the fallback without discussing.
 - **Facility VLAN sets are real venue network topologies** (currently
-  `4Wall`, `Dapper`, `Desert`, plus a generic `ExampleFacility`) — treat
+  `4Wall`, `Dapper`, `Desert`, `HIVE`, plus a generic `ExampleFacility`) — treat
   changes to `vlan_sets.json` VLAN IDs/names as infrastructure changes, not
   cosmetic ones. Confirm with the user before altering VLAN numbers, names,
   or subnet/IP-base values; a wrong VLAN ID here misconfigures real

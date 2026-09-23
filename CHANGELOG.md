@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.02
+
+### Added
+- Added the `HIVE` facility to `src/vlan_sets.json` — 17 VLANs (5_LED, 10_Control, 15_Projection, 18_Truck, 20_sACN, 25_Artnet, 30_Media, 35_Content_Team, 40_Automation, 50_KVM, 55_NDI, 60_Dante_Primary, 65_Dante_Secondary, 67_Yellowtec, 70_WEB, 98_Proxmox, 99_MGMT), sourced from a switch's `show vlan brief` output. Uses the Desert-style IP scheme (`192.168.{vlan}.{fourth}`, /24, no third-octet prompt) since it's not carved from a shared 10.x block like 4Wall/Dapper
+- HIVE picked up automatically in the app's facility menu — the script builds its VLAN-set list dynamically from `vlan_sets.json` keys, no code change needed beyond the JSON entry
+- Added `HIVE` to the required-facilities Pester check in `test/VlanConfig.Tests.ps1`; no in-script hardcoded fallback was added for HIVE (matches existing precedent for `ExampleFacility`, which is JSON-only too)
+- Updated version to 2.02 and ASCII art title accordingly
+
 ## v2.01
 
 ### Removed
