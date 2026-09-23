@@ -33,7 +33,8 @@
 [![Latest Release](https://img.shields.io/github/v/release/dubpixel/dpx_vlan_maestro?label=dpx_vlan_maestro&color=blue&style=flat-square)](https://github.com/dubpixel/dpx_vlan_maestro/releases/latest)
 </div>
 <div align="center">
-<h1 align="center"><a href="https://github.com/dubpixel/dpx_vlan_maestro"><img src="images/logo.png" alt="dpx logo" height="52" align="middle"></a> dpx_vlan_maestro</h1>
+<a href="https://github.com/dubpixel/dpx_vlan_maestro"><img src="images/logo.png" alt="dpx logo" height="80"></a>
+<h1 align="center">dpx_vlan_maestro</h1>
 <h3 align="center"><i>Hyper-V Network Configuration Automation</i></h3>
   <p align="center">
     PowerShell script that creates virtual switches and VLAN-tagged network adapters for different facility configurations
