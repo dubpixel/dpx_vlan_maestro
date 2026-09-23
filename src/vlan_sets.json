@@ -54,6 +54,31 @@
       "ipDefaults": {},
       "subnet": "255.255.255.0"
     },
+    "HIVE": {
+      "vlans": [
+        {"Name": "5_LED", "VlanId": 5},
+        {"Name": "10_Control", "VlanId": 10},
+        {"Name": "15_Projection", "VlanId": 15},
+        {"Name": "18_Truck", "VlanId": 18},
+        {"Name": "20_sACN", "VlanId": 20},
+        {"Name": "25_Artnet", "VlanId": 25},
+        {"Name": "30_Media", "VlanId": 30},
+        {"Name": "35_Content_Team", "VlanId": 35},
+        {"Name": "40_Automation", "VlanId": 40},
+        {"Name": "50_KVM", "VlanId": 50},
+        {"Name": "55_NDI", "VlanId": 55},
+        {"Name": "60_Dante_Primary", "VlanId": 60},
+        {"Name": "65_Dante_Secondary", "VlanId": 65},
+        {"Name": "67_Yellowtec", "VlanId": 67},
+        {"Name": "70_WEB", "VlanId": 70},
+        {"Name": "98_Proxmox", "VlanId": 98},
+        {"Name": "99_MGMT", "VlanId": 99}
+      ],
+      "ipBase": "192.168.{vlan}.{fourth}",
+      "ipPrompts": ["fourth"],
+      "ipDefaults": {},
+      "subnet": "255.255.255.0"
+    },
     "ExampleFacility": {
       "vlans": [
         {"Name": "100_Management", "VlanId": 100},

@@ -47,7 +47,7 @@ Describe 'vlan_sets.json structure' {
         $script:FacilityNames.Count | Should -BeGreaterThan 0
     }
 
-    It "defines facility '<_>'" -ForEach @('4Wall', 'Dapper', 'Desert', 'ExampleFacility') {
+    It "defines facility '<_>'" -ForEach @('4Wall', 'Dapper', 'Desert', 'HIVE', 'ExampleFacility') {
         $script:FacilityNames | Should -Contain $_
     }
 
