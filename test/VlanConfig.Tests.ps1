@@ -47,10 +47,8 @@ Describe 'vlan_sets.json structure' {
         $script:FacilityNames.Count | Should -BeGreaterThan 0
     }
 
-    foreach ($name in @('4Wall', 'Dapper', 'Desert', 'ExampleFacility')) {
-        It "defines facility '$name'" {
-            $script:FacilityNames | Should -Contain $name
-        }
+    It "defines facility '<_>'" -ForEach @('4Wall', 'Dapper', 'Desert', 'ExampleFacility') {
+        $script:FacilityNames | Should -Contain $_
     }
 
     It 'gives every facility the required keys' {
@@ -109,9 +107,18 @@ Describe 'hardcoded fallback matches vlan_sets.json (regression: catches drift l
                 [PSCustomObject]@{ Name = $_.Name; VlanId = [int]$_.VlanId }
             } | Sort-Object VlanId
 
+            # ipDefaults arrives as a [hashtable] from the PowerShell-literal
+            # fallback but a [PSCustomObject] from ConvertFrom-Json — .PSObject.Properties
+            # on a Hashtable reflects the .NET Hashtable class members (Count, Keys, ...),
+            # NOT its entries, so the two types need separate handling here.
             $ipDefaults = @{}
-            if ($vlanSetData.ipDefaults) {
-                foreach ($prop in $vlanSetData.ipDefaults.PSObject.Properties) {
+            $rawDefaults = $vlanSetData.ipDefaults
+            if ($rawDefaults -is [System.Collections.IDictionary]) {
+                foreach ($key in $rawDefaults.Keys) {
+                    $ipDefaults[$key] = $rawDefaults[$key]
+                }
+            } elseif ($rawDefaults) {
+                foreach ($prop in $rawDefaults.PSObject.Properties) {
                     $ipDefaults[$prop.Name] = $prop.Value
                 }
             }
