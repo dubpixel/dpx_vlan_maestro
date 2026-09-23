@@ -9,17 +9,18 @@
 # They do NOT create switches, adapters, or touch Hyper-V in any way, and are
 # safe to run on any machine (no admin rights, no Windows required).
 #
-# NOTE: top-level code in this file runs during Pester's discovery pass, which
-# is a separate scope from the run pass that BeforeAll/It execute in. Every
-# variable shared across that boundary MUST use the $script: scope modifier
-# explicitly, or it will read back as $null when a Describe block runs.
+# NOTE: Pester runs top-level file code during a separate "discovery" pass
+# from the "run" pass that executes BeforeAll/It — values computed at the
+# very top of this file (even with $script:) are NOT reliably visible inside
+# BeforeAll/It. Every path/value each Describe block needs is therefore
+# recomputed independently inside that block's own BeforeAll.
 # ================================================================================
 
-$script:RepoRoot = Split-Path -Parent $PSScriptRoot
-$script:ScriptPath = Join-Path $script:RepoRoot 'src/vlan_maestro.ps1'
-$script:JsonPath = Join-Path $script:RepoRoot 'src/vlan_sets.json'
-
 Describe 'vlan_maestro.ps1 syntax' {
+    BeforeAll {
+        $script:ScriptPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'src/vlan_maestro.ps1'
+    }
+
     It 'parses without syntax errors' {
         $tokens = $null
         $parseErrors = $null
@@ -33,7 +34,8 @@ Describe 'vlan_maestro.ps1 syntax' {
 
 Describe 'vlan_sets.json structure' {
     BeforeAll {
-        $script:Json = Get-Content $script:JsonPath -Raw | ConvertFrom-Json
+        $jsonPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'src/vlan_sets.json'
+        $script:Json = Get-Content $jsonPath -Raw | ConvertFrom-Json
         $script:FacilityNames = $script:Json.vlanSets.PSObject.Properties.Name
     }
 
@@ -75,9 +77,13 @@ Describe 'vlan_sets.json structure' {
 
 Describe 'hardcoded fallback matches vlan_sets.json (regression: catches drift like the AeonPoint->Dapper ipDefaults mismatch)' {
     BeforeAll {
+        $repoRoot = Split-Path -Parent $PSScriptRoot
+        $scriptPath = Join-Path $repoRoot 'src/vlan_maestro.ps1'
+        $jsonPath = Join-Path $repoRoot 'src/vlan_sets.json'
+
         $tokens = $null
         $parseErrors = $null
-        $ast = [System.Management.Automation.Language.Parser]::ParseFile($script:ScriptPath, [ref]$tokens, [ref]$parseErrors)
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile($scriptPath, [ref]$tokens, [ref]$parseErrors)
 
         $assignments = $ast.FindAll({
             param($node)
@@ -96,7 +102,7 @@ Describe 'hardcoded fallback matches vlan_sets.json (regression: catches drift l
             $script:HardcodedSets[$facilityName] = $value
         }
 
-        $script:Json = Get-Content $script:JsonPath -Raw | ConvertFrom-Json
+        $script:Json = Get-Content $jsonPath -Raw | ConvertFrom-Json
 
         function script:Normalize($vlanSetData) {
             $vlans = $vlanSetData.vlans | ForEach-Object {
