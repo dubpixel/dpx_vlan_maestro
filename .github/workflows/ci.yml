@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  static-checks:
+    # windows-latest for real Windows PowerShell fidelity. Note: hosted GitHub
+    # runners do NOT support nested virtualization, so the Hyper-V module is
+    # unavailable here — this job is static/data validation only (syntax,
+    # lint, JSON structure, fallback-vs-JSON drift). It cannot exercise
+    # New-VMSwitch/Add-VMNetworkAdapter/etc. Real functional testing requires
+    # a self-hosted runner on an actual Hyper-V-capable Windows host.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Syntax-check all PowerShell scripts
+        shell: pwsh
+        run: |
+          $failed = $false
+          Get-ChildItem -Path src -Filter *.ps1 -Recurse | ForEach-Object {
+            $tokens = $null
+            $parseErrors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$tokens, [ref]$parseErrors)
+            if ($parseErrors.Count -gt 0) {
+              Write-Host "::error file=$($_.FullName)::Syntax errors found"
+              $parseErrors | ForEach-Object { Write-Host "::error::$($_.Message) (line $($_.Extent.StartLineNumber))" }
+              $failed = $true
+            } else {
+              Write-Host "OK: $($_.FullName)"
+            }
+          }
+          if ($failed) { exit 1 }
+
+      - name: Validate vlan_sets.json
+        shell: pwsh
+        run: |
+          try {
+            Get-Content src/vlan_sets.json -Raw | ConvertFrom-Json | Out-Null
+            Write-Host "OK: src/vlan_sets.json is valid JSON"
+          } catch {
+            Write-Host "::error file=src/vlan_sets.json::$($_.Exception.Message)"
+            exit 1
+          }
+
+      - name: Install PSScriptAnalyzer
+        shell: pwsh
+        run: Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser -ErrorAction Stop
+
+      - name: Lint (PSScriptAnalyzer)
+        shell: pwsh
+        run: |
+          $results = Invoke-ScriptAnalyzer -Path src -Recurse -Severity Error,Warning
+          $results | Format-Table -AutoSize
+          $errorCount = ($results | Where-Object Severity -eq 'Error').Count
+          if ($errorCount -gt 0) {
+            Write-Host "::error::PSScriptAnalyzer found $errorCount error-severity issue(s)"
+            exit 1
+          }
+
+      - name: Install Pester
+        shell: pwsh
+        run: Install-Module -Name Pester -Force -SkipPublisherCheck -Scope CurrentUser -MinimumVersion 5.0.0
+
+      - name: Run Pester tests
+        shell: pwsh
+        run: |
+          $config = New-PesterConfiguration
+          $config.Run.Path = 'test'
+          $config.Run.Exit = $true
+          $config.Output.Verbosity = 'Detailed'
+          Invoke-Pester -Configuration $config

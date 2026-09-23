@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.0
+
+### Added or Changed
+- Added `218_Dante` VLAN to the 4Wall facility set (previously had no Dante VLAN) — updated in both `src/vlan_sets.json` and the in-script hardcoded fallback
+- Renamed the "AeonPoint" facility to its correct name, "Dapper", across `src/vlan_sets.json`, `src/vlan_maestro.ps1` (variable names and fallback config), README.md, and AGENTS.md
+- Fixed a mismatch in the Dapper facility's hardcoded IP default: the in-script fallback had `third=13` while `vlan_sets.json` (the actively-used source of truth) had `third=3` — fallback corrected to `third=3`
+- Removed "**CURRENTLY IN TESTING**" label from the Nuke-all mode menu description and closed out the corresponding TODO — confirmed working on real Hyper-V hosts
+- Brought the project up to the current dpx template: added `AGENTS.md`/`CLAUDE.md`, refreshed `.github/` (PR template, Pages workflow, updated issue templates), fixed `_config.yml` kramdown rendering, archived the old `.github/copilot-instructions.md` to `docs/archive/` (untracked)
+- Added static regression testing: `test/VlanConfig.Tests.ps1` (Pester — syntax check, `vlan_sets.json` structure validation, and a drift check between the in-script hardcoded fallback and `vlan_sets.json`, the exact bug class fixed above) plus `.github/workflows/ci.yml` running syntax check + PSScriptAnalyzer + the Pester suite on every push/PR. Note: CI runs on hosted GitHub runners, which don't support nested virtualization — it cannot exercise real Hyper-V cmdlets, only static/data checks
+- Updated version to 2.0 and ASCII art title accordingly — bumped past the usual +0.01 patch increment given the scope of this pass (facility rename + data fix + full docs/template overhaul)
+
 ## v1.94
 
 ### Added or Changed

@@ -85,7 +85,7 @@
 <summary><h3>About The Project</h3></summary>
 DPX_VLAN_MAESTRO is a comprehensive PowerShell automation script for Windows Hyper-V environments. It simplifies the complex process of setting up virtual network infrastructure by creating virtual switches, VLAN-tagged network adapters, and assigning static IP addresses according to facility-specific configurations.
 
-The script supports multiple facility types (4Wall, Aeon Point, Desert, and custom configurations) with dynamic VLAN set loading from external JSON files. It includes robust validation, safety features, and multiple operation modes to handle different network management scenarios.
+The script supports multiple facility types (4Wall, Dapper, Desert, and custom configurations) with dynamic VLAN set loading from external JSON files. It includes robust validation, safety features, and multiple operation modes to handle different network management scenarios.
 
 **Key Capabilities:**
 - **Dynamic Configuration**: Load VLAN sets from external JSON files without code changes
@@ -106,7 +106,7 @@ The script supports multiple facility types (4Wall, Aeon Point, Desert, and cust
 
 ### 🔧 **Dynamic VLAN Configuration**
 - Load facility-specific VLAN sets from external JSON files
-- Support for multiple facility types (4Wall, Aeon Point, Desert, custom)
+- Support for multiple facility types (4Wall, Dapper, Desert, custom)
 - No code changes required to add new configurations
 
 ### 🛡️ **Advanced IP Management**
@@ -235,6 +235,36 @@ powershell -ExecutionPolicy Bypass -File ".\vlan_maestro.ps1"
 - Administrative privileges are required for Hyper-V operations
 - The batch file handles this automatically
 
+## Testing
+
+Before running the tool against a real Hyper-V host, you can catch obvious
+regressions locally — no admin rights or Hyper-V required, since these are
+static/data checks only (they never call `New-VMSwitch` or touch networking):
+
+```powershell
+# From the repo root, in PowerShell:
+
+# 1. Syntax check
+$errors = $null
+[void][System.Management.Automation.Language.Parser]::ParseFile("src/vlan_maestro.ps1", [ref]$null, [ref]$errors)
+$errors
+
+# 2. Lint (install once: Install-Module PSScriptAnalyzer -Scope CurrentUser)
+Invoke-ScriptAnalyzer -Path src -Recurse
+
+# 3. Config/regression tests — checks vlan_sets.json structure and that the
+#    in-script hardcoded fallback hasn't drifted from vlan_sets.json
+#    (install/upgrade once: Install-Module Pester -Force -SkipPublisherCheck -Scope CurrentUser -MinimumVersion 5.0.0
+#    — Windows PowerShell 5.1's bundled Pester 3.4 is too old for this test file)
+Invoke-Pester -Path test
+```
+
+The same three checks run automatically in GitHub Actions CI (`.github/workflows/ci.yml`)
+on every push/PR. **CI cannot test actual Hyper-V behavior** — GitHub-hosted
+runners don't support nested virtualization, so `New-VMSwitch`/`Add-VMNetworkAdapter`/etc.
+are never exercised there. Only a real Windows host with Hyper-V enabled (or a
+self-hosted runner on one) can verify that part.
+
 ## Configuration
 
 <details>
@@ -338,7 +368,7 @@ At completion, the script displays:
 
 1. **Select VLAN Set**
    - Script automatically loads all available VLAN sets from `vlan_sets.json`
-   - Choose from any configured facility (4Wall, Aeon Point, Desert, or custom sets)
+   - Choose from any configured facility (4Wall, Dapper, Desert, or custom sets)
    - Each set contains predefined VLAN configurations
 
 2. **Select Mode**
@@ -377,7 +407,7 @@ At completion, the script displays:
 <summary><strong>📋 Click to expand usage examples</strong></summary>
 
 #### **Scenario 1: Complete Setup (Normal Mode)**
-Setting up a new Hyper-V host with AeonPoint VLAN configuration:
+Setting up a new Hyper-V host with Dapper VLAN configuration:
 
 ```powershell
 PS C:\DPX_VLAN_MAESTRO\src> .\vlan_maestro.ps1
@@ -385,12 +415,12 @@ PS C:\DPX_VLAN_MAESTRO\src> .\vlan_maestro.ps1
 # ASCII art title and warning messages display...
 
 Available VLAN sets:
-1. 4Wall (6 VLANs)
-2. AeonPoint (10 VLANs)
+1. 4Wall (7 VLANs)
+2. Dapper (10 VLANs)
 3. Desert (13 VLANs)
 4. ExampleFacility (3 VLANs)
 Enter choice (1-4): 2
-Using AeonPoint VLAN set (10 VLANs).
+Using Dapper VLAN set (10 VLANs).
 
 Select mode:
 1. Normal (create switch and adapters, then IP)
@@ -461,8 +491,8 @@ Changing IP addresses on existing VLAN adapters without recreating them:
 PS C:\DPX_VLAN_MAESTRO\src> .\vlan_maestro.ps1
 
 Available VLAN sets:
-1. 4Wall (6 VLANs)
-2. AeonPoint (10 VLANs)
+1. 4Wall (7 VLANs)
+2. Dapper (10 VLANs)
 3. Desert (13 VLANs)
 Enter choice (1-4): 3
 Using Desert VLAN set (13 VLANs).
@@ -493,8 +523,8 @@ Removing all virtual switches before decommissioning or rebuilding:
 PS C:\DPX_VLAN_MAESTRO\src> .\vlan_maestro.ps1
 
 Available VLAN sets:
-1. 4Wall (6 VLANs)
-2. AeonPoint (10 VLANs)
+1. 4Wall (7 VLANs)
+2. Dapper (10 VLANs)
 3. Desert (13 VLANs)
 Enter choice (1-4): 1
 
@@ -542,8 +572,8 @@ Using a custom VLAN set defined in `vlan_sets.json`:
 PS C:\DPX_VLAN_MAESTRO\src> .\vlan_maestro.ps1
 
 Available VLAN sets:
-1. 4Wall (6 VLANs)
-2. AeonPoint (10 VLANs)
+1. 4Wall (7 VLANs)
+2. Dapper (10 VLANs)
 3. Desert (13 VLANs)
 4. ExampleFacility (3 VLANs)
 5. StudioB (3 VLANs)
@@ -675,7 +705,7 @@ If you encounter issues not covered here:
 - [x] Subnet-aware IP validation
 - [x] Configuration summary output
 - [x] Dynamic IP prompting with defaults
-- [x] Multiple facility support (4Wall, Aeon Point, Desert, custom)
+- [x] Multiple facility support (4Wall, Dapper, Desert, custom)
 - [x] DHCP vs Static IP configuration choice
 
 ### 🔄 **In Progress**
