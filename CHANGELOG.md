@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.01
+
+### Removed
+- Removed stale duplicate `src/vlan_mesitro.ps1` (pre-rename "Mesitro"→"Maestro" leftover, out of sync with `vlan_maestro.ps1` since v2.0)
+- Removed unused `dpx_release_note_template.md` stub, never filled in for this project
+- Removed leftover hardware-template product images (`front.png`, `rear.png`, `front_render.png`, `rear_render.png`, `pcb_front.png`, `pcb_rear.png`, `logo_HF.png`, `dubpixel_identicon.png`) and the README's "### FRONT" product-photo section — this is a pure PowerShell tool with no physical hardware to photograph
+- Removed empty/incomplete `v0.0.0` and `v1.85` changelog stub entries (no recoverable content, not backed by version-tagged git history)
+
+### Changed
+- Updated README header to the current slim template style (logo inline in the title, GitHub release badge) matching newer dubpixel software projects (e.g. dpx_buttonode)
+- Updated version to 2.01 and ASCII art title accordingly
+
 ## v2.0
 
 ### Added or Changed
@@ -46,20 +58,9 @@
 - Added Test-IPAgainstSubnet function for proper IP/subnet validation with network/broadcast calculation
 - Updated version to 1.86 and ASCII art title accordingly
 
-## v1.85
-
 ## v1.83
 
 ### Added or Changed
 - Refactored hardcoded VLAN configurations to be defined as variables ($hardcoded4Wall, $hardcodedAeonPoint, $hardcodedDesert) at the top of the script for better maintainability
 - Simplified the else block in VLAN set building to assign these pre-defined variables instead of inline definitions
 - Updated version to 1.83 and ASCII art title accordingly
-
-## v0.0.0
-
-### Added or Changed
-- 
-
-### Removed
-
-- S
