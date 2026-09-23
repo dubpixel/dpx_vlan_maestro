@@ -8,24 +8,32 @@
 # These are STATIC checks only — they parse the script and JSON as text/data.
 # They do NOT create switches, adapters, or touch Hyper-V in any way, and are
 # safe to run on any machine (no admin rights, no Windows required).
+#
+# NOTE: top-level code in this file runs during Pester's discovery pass, which
+# is a separate scope from the run pass that BeforeAll/It execute in. Every
+# variable shared across that boundary MUST use the $script: scope modifier
+# explicitly, or it will read back as $null when a Describe block runs.
 # ================================================================================
 
-$RepoRoot = Split-Path -Parent $PSScriptRoot
-$ScriptPath = Join-Path $RepoRoot 'src/vlan_maestro.ps1'
-$JsonPath = Join-Path $RepoRoot 'src/vlan_sets.json'
+$script:RepoRoot = Split-Path -Parent $PSScriptRoot
+$script:ScriptPath = Join-Path $script:RepoRoot 'src/vlan_maestro.ps1'
+$script:JsonPath = Join-Path $script:RepoRoot 'src/vlan_sets.json'
 
 Describe 'vlan_maestro.ps1 syntax' {
     It 'parses without syntax errors' {
         $tokens = $null
         $parseErrors = $null
-        [void][System.Management.Automation.Language.Parser]::ParseFile($ScriptPath, [ref]$tokens, [ref]$parseErrors)
+        [void][System.Management.Automation.Language.Parser]::ParseFile($script:ScriptPath, [ref]$tokens, [ref]$parseErrors)
+        if ($parseErrors.Count -gt 0) {
+            $parseErrors | ForEach-Object { Write-Host "PARSE ERROR: $($_.Message) at line $($_.Extent.StartLineNumber)" }
+        }
         $parseErrors.Count | Should -Be 0
     }
 }
 
 Describe 'vlan_sets.json structure' {
     BeforeAll {
-        $script:Json = Get-Content $JsonPath -Raw | ConvertFrom-Json
+        $script:Json = Get-Content $script:JsonPath -Raw | ConvertFrom-Json
         $script:FacilityNames = $script:Json.vlanSets.PSObject.Properties.Name
     }
 
@@ -69,7 +77,7 @@ Describe 'hardcoded fallback matches vlan_sets.json (regression: catches drift l
     BeforeAll {
         $tokens = $null
         $parseErrors = $null
-        $ast = [System.Management.Automation.Language.Parser]::ParseFile($ScriptPath, [ref]$tokens, [ref]$parseErrors)
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile($script:ScriptPath, [ref]$tokens, [ref]$parseErrors)
 
         $assignments = $ast.FindAll({
             param($node)
@@ -88,9 +96,9 @@ Describe 'hardcoded fallback matches vlan_sets.json (regression: catches drift l
             $script:HardcodedSets[$facilityName] = $value
         }
 
-        $script:Json = Get-Content $JsonPath -Raw | ConvertFrom-Json
+        $script:Json = Get-Content $script:JsonPath -Raw | ConvertFrom-Json
 
-        function Normalize($vlanSetData) {
+        function script:Normalize($vlanSetData) {
             $vlans = $vlanSetData.vlans | ForEach-Object {
                 [PSCustomObject]@{ Name = $_.Name; VlanId = [int]$_.VlanId }
             } | Sort-Object VlanId
@@ -110,7 +118,6 @@ Describe 'hardcoded fallback matches vlan_sets.json (regression: catches drift l
                 subnet     = $vlanSetData.subnet
             } | ConvertTo-Json -Depth 10 -Compress
         }
-        $script:Normalize = ${function:Normalize}
     }
 
     It 'found at least one hardcoded fallback set to check' {
@@ -124,8 +131,8 @@ Describe 'hardcoded fallback matches vlan_sets.json (regression: catches drift l
         $jsonEntry = $script:Json.vlanSets.$facilityName
         $jsonEntry | Should -Not -BeNullOrEmpty -Because "vlan_sets.json has no '$facilityName' facility"
 
-        $hardcodedNormalized = & $script:Normalize $script:HardcodedSets[$facilityName]
-        $jsonNormalized = & $script:Normalize $jsonEntry
+        $hardcodedNormalized = script:Normalize $script:HardcodedSets[$facilityName]
+        $jsonNormalized = script:Normalize $jsonEntry
 
         $hardcodedNormalized | Should -Be $jsonNormalized -Because "the in-script fallback for '$facilityName' has drifted from vlan_sets.json — these must stay in sync or the tool behaves differently when the JSON file is missing/corrupt"
     }
