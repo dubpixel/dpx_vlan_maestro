@@ -10,9 +10,6 @@
 <!--search dpx_vlan_maestro.. search & replace is COMMAND OPTION F -->
 
 <!--this is the version for software -->
-<!--todo ** add small product image thats not in a details tag -->
-<!--todo ** new software product image? Remove it? -->
-<!--igure out how to get the details tag to properly render in jekyll for gihub pages.-->
 
 
 
@@ -33,13 +30,10 @@
 [![Issues][issues-shield]][issues-url]
 [![MIT License][license-shield]][license-url]
 [![LinkedIn][linkedin-shield]][linkedin-url]
+[![Latest Release](https://img.shields.io/github/v/release/dubpixel/dpx_vlan_maestro?label=dpx_vlan_maestro&color=blue&style=flat-square)](https://github.com/dubpixel/dpx_vlan_maestro/releases/latest)
 </div>
-<!-- PROJECT LOGO -->
 <div align="center">
-  <a href="https://github.com/dubpixel/dpx_vlan_maestro">
-    <img src="images/logo.png" alt="Logo" height="120">
-  </a>
-<h1 align="center">dpx_vlan_maestro</h1>
+<h1 align="center"><a href="https://github.com/dubpixel/dpx_vlan_maestro"><img src="images/logo.png" alt="dpx logo" height="52" align="middle"></a> dpx_vlan_maestro</h1>
 <h3 align="center"><i>Hyper-V Network Configuration Automation</i></h3>
   <p align="center">
     PowerShell script that creates virtual switches and VLAN-tagged network adapters for different facility configurations
@@ -95,11 +89,6 @@ The script supports multiple facility types (4Wall, Dapper, Desert, and custom c
 - **Configuration Summary**: Detailed output showing all network settings
 
 *author(s): // www.dubpixel.tv  - i@dubpixel.tv* 
-</br>
-<h3>Images</h3>
-
-### FRONT
-![FRONT][product-front]
 </details>
 
 ## Features
@@ -783,12 +772,6 @@ Don't forget to give the project a star! Thanks again!
 [license-url]: https://github.com/dubpixel/dpx_vlan_maestro/blob/main/LICENSE.txt
 [linkedin-shield]: https://img.shields.io/badge/-LinkedIn-black.svg?style=flat-square&logo=linkedin&colorB=555
 [linkedin-url]: https://linkedin.com/in/jfleitell
-[product-front]: images/front.png
-[product-rear]: images/rear.png
-[product-front-rendering]: images/front_render.png
-[product-rear-rendering]: images/rear_render.png
-[product-pcbFront]: images/pcb_front.png
-[product-pcbRear]: images/pcb_rear.png
 [Next.js]: https://img.shields.io/badge/next.js-000000?style=for-the-badge&logo=nextdotjs&logoColor=white
 [Next-url]: https://nextjs.org/
 [React.js]: https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB
