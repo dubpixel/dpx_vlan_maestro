@@ -1,5 +1,19 @@
 # Changelog
 
+## v2.5.0
+
+> ⚠️ **Untested on real hardware.** The diff logic (`Compare-FacilityVlansToSwitch`) is unit-tested directly, but the actual `Add-VMNetworkAdapter`/`Set-VMNetworkAdapterVlan` reconciliation flow has only been validated statically (syntax/lint/CI), not run against a real switch with real drift/missing-VLAN scenarios.
+
+### Added
+- New "Update existing" mode (issue #10) — reconciles an already-configured switch against the selected facility's current VLAN list, adding only what's missing:
+  - Diffs by adapter name; a facility VLAN with no matching adapter is added, one whose name matches but whose live VLAN ID differs is **flagged and skipped** (never auto-corrected — per the ticket's explicit scope decision), and exact matches are left alone
+  - Shows a preview (already-present count, drifted entries with configured-vs-live VLAN ID, and the list of VLANs that would be added) and requires confirmation before creating anything
+  - Never touches or removes existing adapters; doesn't assign IPs to newly added ones either — the note in the mode's own output says to run IP-only mode afterward for that, keeping this mode purely additive/topology-only
+  - Solves the exact gap that motivated this ticket: a host already running the pre-v2.0 4Wall set had no supported way to pick up the new `218_Dante` VLAN without a full teardown/rebuild
+- Added `Compare-FacilityVlansToSwitch` as a standalone, pure diff function with direct Pester unit tests (missing VLAN, drift detection, exact-match, and empty-switch cases)
+- Extended the `$validModes` sanity test to cover the new `updateExisting` flag
+- Updated version to 2.5.0 and ASCII art title accordingly
+
 ## v2.4.0
 
 > ⚠️ **Untested on real hardware for anything Hyper-V-touching.** This
