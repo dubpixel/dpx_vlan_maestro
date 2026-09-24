@@ -285,7 +285,10 @@ Describe 'Mode table sanity (regression: catches copy-paste flag mistakes across
             $node.Left -is [System.Management.Automation.Language.VariableExpressionAst] -and
             $node.Left.VariablePath.UserPath -eq 'validModes'
         }, $true) | Select-Object -First 1
-        $script:ValidModes = Invoke-Expression $assignment.Extent.Text
+        # An assignment statement produces no pipeline output on its own,
+        # so Invoke-Expression on just "$validModes = @{...}" returns
+        # nothing -- append a line that returns the variable's value.
+        $script:ValidModes = Invoke-Expression "$($assignment.Extent.Text)`n`$validModes"
     }
 
     It 'exactly one mode has each of nukeAll/addSingle/schemaEdit set, and Normal/IP-only have none' {
