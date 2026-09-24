@@ -398,10 +398,10 @@ At completion, the script displays:
    - Requires explicit confirmation by typing "YES"
 
 6. **Add Single VLAN Mode**
-   - Prompts for adapter name, VLAN ID (1–4094, with a collision warning against VLAN tags already in use), and an existing target switch (doesn't create a new one)
-   - Offers the same DHCP-or-Static choice as the other modes; Static prompts for a full IP + subnet, validated with the same subnet-math check used elsewhere
+   - First asks where the VLAN should go: **System only** (Hyper-V, not saved), **JSON only** (saved to the current facility's config, Hyper-V untouched), or **Both**
+   - Prompts for adapter name and VLAN ID (1–4094, with a collision warning against VLAN tags already in use)
+   - If applying to the system: picks an existing target switch (doesn't create a new one), then the same DHCP-or-Static choice as the other modes; Static prompts for a full IP + subnet, validated with the same subnet-math check used elsewhere
    - Shows a confirmation summary before applying anything
-   - Optionally offers to also save the new VLAN into the currently-selected facility's entry in `vlan_sets.json`, for reuse later — declines by default
 
 7. **Completion**
    - Script assigns static IPs to all virtual adapters (in Normal/IP-only modes)
