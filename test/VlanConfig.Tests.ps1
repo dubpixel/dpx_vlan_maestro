@@ -73,6 +73,88 @@ Describe 'vlan_sets.json structure' {
     }
 }
 
+Describe 'Add single VLAN mode helper functions (issue #11)' {
+    BeforeAll {
+        $scriptPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'src/vlan_maestro.ps1'
+
+        # Dot-source only the function definitions, not the whole script —
+        # the script body itself prompts for input and exits if not
+        # elevated, neither of which we want during a test run. Function
+        # definitions are pure text before the first executable statement,
+        # so extracting them via the AST is safe.
+        $tokens = $null
+        $parseErrors = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile($scriptPath, [ref]$tokens, [ref]$parseErrors)
+        $functionAsts = $ast.FindAll({
+            param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst]
+        }, $true)
+        foreach ($fn in $functionAsts) {
+            . ([scriptblock]::Create($fn.Extent.Text))
+        }
+    }
+
+    Context 'Test-VlanIdInRange' {
+        It 'accepts the boundary values 1 and 4094' {
+            Test-VlanIdInRange -VlanId 1 | Should -BeTrue
+            Test-VlanIdInRange -VlanId 4094 | Should -BeTrue
+        }
+        It 'rejects 0 and 4095' {
+            Test-VlanIdInRange -VlanId 0 | Should -BeFalse
+            Test-VlanIdInRange -VlanId 4095 | Should -BeFalse
+        }
+    }
+
+    Context 'Test-VlanIdCollision' {
+        It 'detects a VLAN ID already in the existing list' {
+            Test-VlanIdCollision -VlanId 60 -ExistingVlanIds @(10, 60, 99) | Should -BeTrue
+        }
+        It 'returns false when the VLAN ID is not in use' {
+            Test-VlanIdCollision -VlanId 61 -ExistingVlanIds @(10, 60, 99) | Should -BeFalse
+        }
+        It 'returns false against an empty list' {
+            Test-VlanIdCollision -VlanId 61 -ExistingVlanIds @() | Should -BeFalse
+        }
+    }
+
+    Context 'Add-VlanToFacilityConfig' {
+        BeforeEach {
+            $script:tempJsonPath = Join-Path ([System.IO.Path]::GetTempPath()) "vlan_sets_test_$([guid]::NewGuid()).json"
+            @{
+                vlanSets = @{
+                    TestFacility = @{
+                        vlans      = @(@{ Name = "10_Existing"; VlanId = 10 })
+                        ipBase     = "192.168.{vlan}.{fourth}"
+                        ipPrompts  = @("fourth")
+                        ipDefaults = @{}
+                        subnet     = "255.255.255.0"
+                    }
+                }
+            } | ConvertTo-Json -Depth 10 | Set-Content $script:tempJsonPath
+        }
+        AfterEach {
+            Remove-Item $script:tempJsonPath -ErrorAction SilentlyContinue
+        }
+
+        It 'appends a new VLAN to the named facility without disturbing the existing one' {
+            $result = Add-VlanToFacilityConfig -JsonPath $script:tempJsonPath -FacilityName 'TestFacility' -VlanName '220_Temp_Record' -VlanId 220
+            $result | Should -BeTrue
+
+            $reloaded = Get-Content $script:tempJsonPath -Raw | ConvertFrom-Json
+            $vlans = $reloaded.vlanSets.TestFacility.vlans
+            $vlans.Count | Should -Be 2
+            ($vlans | Where-Object { $_.VlanId -eq 10 }).Name | Should -Be '10_Existing'
+            ($vlans | Where-Object { $_.VlanId -eq 220 }).Name | Should -Be '220_Temp_Record'
+        }
+
+        It 'returns false and leaves the file untouched when the facility does not exist' {
+            $before = Get-Content $script:tempJsonPath -Raw
+            $result = Add-VlanToFacilityConfig -JsonPath $script:tempJsonPath -FacilityName 'NoSuchFacility' -VlanName 'x' -VlanId 999 -ErrorAction SilentlyContinue
+            $result | Should -BeFalse
+            (Get-Content $script:tempJsonPath -Raw) | Should -Be $before
+        }
+    }
+}
+
 Describe 'hardcoded fallback matches vlan_sets.json (regression: catches drift like the AeonPoint->Dapper ipDefaults mismatch)' {
     BeforeAll {
         $repoRoot = Split-Path -Parent $PSScriptRoot

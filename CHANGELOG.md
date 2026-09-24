@@ -2,10 +2,13 @@
 
 ## v2.3.0
 
-> ⚠️ **Untested on real hardware.** New mode logic below has only been
-> validated statically (brace-balance check, CI syntax/lint/Pester) —
-> not yet run against a real Hyper-V host. Treat this release as
-> unverified pending real-world testing (issue #11).
+> ⚠️ **Hyper-V behavior untested on real hardware.** The Hyper-V cmdlet
+> calls in the new mode (`Add-VMNetworkAdapter`, `Set-VMNetworkAdapterVlan`,
+> IP assignment) have only been validated statically (syntax/lint/CI) —
+> not yet run against a real host. The new mode's actual decision logic
+> (VLAN ID range/collision checks, JSON persistence) is unit-tested
+> directly, see below. Treat the Hyper-V side as unverified pending
+> real-world testing (issue #11).
 
 ### Added
 - New "Add a single VLAN" mode (issue #11) — guided prompts to add one ad-hoc VLAN adapter to an already-existing virtual switch, independent of any facility's saved `vlan_sets.json` schema:
@@ -14,6 +17,7 @@
   - Offers the same DHCP-vs-Static choice as Normal/IP-only modes; Static prompts for a full IP + subnet mask, validated with the existing `Test-IPAgainstSubnet` helper
   - Shows a confirmation summary before touching Hyper-V
   - Optionally offers to also persist the new VLAN into the currently-selected facility's entry in `vlan_sets.json` (defaults to no) — a lightweight bridge toward the interactive schema-editor ticket (#7) without requiring it
+- Extracted the new mode's core decision logic into three standalone, testable functions — `Test-VlanIdInRange`, `Test-VlanIdCollision`, `Add-VlanToFacilityConfig` — and added direct Pester unit tests for each in `test/VlanConfig.Tests.ps1` (boundary values, collision detection, and JSON read-modify-write correctness against a temp file). This is real script logic that doesn't require Hyper-V, elevation, or mocking the whole monolithic script to exercise, unlike the Hyper-V cmdlet calls themselves
 - Updated version to 2.3.0 and ASCII art title accordingly
 
 ## v2.2.2 — HIVE hotfix

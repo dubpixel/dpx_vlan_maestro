@@ -179,6 +179,46 @@ Write-Host "Using delay of $delay seconds between operations."
 Write-Host "═══════════════════════════════════════════════════════════════════════════════" -ForegroundColor Red
 
 
+# Function to check whether a VLAN ID falls in the valid tag range
+function Test-VlanIdInRange {
+    param([int]$VlanId)
+    return ($VlanId -ge 1 -and $VlanId -le 4094)
+}
+
+# Function to check whether a VLAN ID collides with one already in use
+function Test-VlanIdCollision {
+    param([int]$VlanId, [array]$ExistingVlanIds)
+    return ($ExistingVlanIds -contains $VlanId)
+}
+
+# Function to append a new VLAN entry to a facility's saved config in
+# vlan_sets.json. Returns $true on success, $false if the facility wasn't
+# found or the write failed (errors are written to the error stream, not
+# thrown, so callers can decide how to report them).
+function Add-VlanToFacilityConfig {
+    param(
+        [string]$JsonPath,
+        [string]$FacilityName,
+        [string]$VlanName,
+        [int]$VlanId
+    )
+    try {
+        $rawJson = Get-Content $JsonPath -Raw | ConvertFrom-Json
+        $facilityNode = $rawJson.vlanSets.$FacilityName
+        if (!$facilityNode) {
+            Write-Error "Facility '$FacilityName' not found in $JsonPath"
+            return $false
+        }
+        $newVlanEntry = [PSCustomObject]@{ Name = $VlanName; VlanId = $VlanId }
+        $facilityNode.vlans = @($facilityNode.vlans) + $newVlanEntry
+        $rawJson | ConvertTo-Json -Depth 10 | Set-Content $JsonPath
+        return $true
+    } catch {
+        Write-Error "Error saving to $($JsonPath): $($_.Exception.Message)"
+        return $false
+    }
+}
+
 # Function to convert CIDR notation to subnet mask
 function Convert-CidrToSubnetMask {
     param([int]$cidr)
@@ -507,15 +547,13 @@ if ($addSingle) {
         $isValidVlanId = $false
         try {
             $adhocVlanId = [int]$vlanIdInput
-            if ($adhocVlanId -ge 1 -and $adhocVlanId -le 4094) {
-                $isValidVlanId = $true
-            }
+            $isValidVlanId = Test-VlanIdInRange -VlanId $adhocVlanId
         } catch {
             $isValidVlanId = $false
         }
         if (!$isValidVlanId) {
             Write-Host "Invalid VLAN ID. Please enter a number between 1 and 4094." -ForegroundColor Red
-        } elseif ($existingVlanTags -contains $adhocVlanId) {
+        } elseif (Test-VlanIdCollision -VlanId $adhocVlanId -ExistingVlanIds $existingVlanTags) {
             Write-Host "⚠ Warning: VLAN ID $adhocVlanId is already in use on an existing adapter." -ForegroundColor Yellow
             $collisionConfirm = Read-Host "Continue anyway? (y/N)"
             if ($collisionConfirm -notmatch '^[Yy]') {
@@ -665,19 +703,11 @@ if ($addSingle) {
     if (Test-Path $vlanConfigPath) {
         $saveChoice = Read-Host "Add this VLAN to the '$selectedVlanSet' facility's saved config in vlan_sets.json too? (y/N)"
         if ($saveChoice -match '^[Yy]') {
-            try {
-                $rawJson = Get-Content $vlanConfigPath -Raw | ConvertFrom-Json
-                $facilityNode = $rawJson.vlanSets.$selectedVlanSet
-                if ($facilityNode) {
-                    $newVlanEntry = [PSCustomObject]@{ Name = $adhocName; VlanId = $adhocVlanId }
-                    $facilityNode.vlans = @($facilityNode.vlans) + $newVlanEntry
-                    $rawJson | ConvertTo-Json -Depth 10 | Set-Content $vlanConfigPath
-                    Write-Host "✓ Saved '$adhocName' (VLAN $adhocVlanId) to the '$selectedVlanSet' facility in $vlanConfigPath" -ForegroundColor Green
-                } else {
-                    Write-Host "✗ Could not find facility '$selectedVlanSet' in $vlanConfigPath — skipped saving." -ForegroundColor Red
-                }
-            } catch {
-                Write-Host "✗ Error saving to $($vlanConfigPath): $($_.Exception.Message)" -ForegroundColor Red
+            $saved = Add-VlanToFacilityConfig -JsonPath $vlanConfigPath -FacilityName $selectedVlanSet -VlanName $adhocName -VlanId $adhocVlanId
+            if ($saved) {
+                Write-Host "✓ Saved '$adhocName' (VLAN $adhocVlanId) to the '$selectedVlanSet' facility in $vlanConfigPath" -ForegroundColor Green
+            } else {
+                Write-Host "✗ Could not save '$adhocName' to the '$selectedVlanSet' facility in $vlanConfigPath — see error above." -ForegroundColor Red
             }
         }
     } else {
