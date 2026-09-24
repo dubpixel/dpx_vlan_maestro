@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.5.1
+
+### Added
+- Real, purpose-built manual/reference page at `web/index.html` (issue #20) — replaces the Jekyll-rendered README as the GitHub Pages site. Covers overview, requirements, all six modes, current facilities, the `vlan_sets.json` schema, quick start, and testing — organized as an actual reference doc, matching the dark-theme visual identity used by other recent dpx projects (JetBrains Mono/Space Grotesk, dark card layout) rather than a converted README
+
+### Removed
+- Removed the Jekyll pipeline entirely: `_config.yml`, `Gemfile` (both dead now that Pages serves the static page directly) — `.github/workflows/pages.yml` no longer runs `actions/jekyll-build-pages`, it just assembles `web/` + `images/logo.png` into the Pages artifact directly
+
+### Changed
+- README's header link now points at the new manual page instead of the repo itself
+- Updated version to 2.5.1 and ASCII art title accordingly
+
 ## v2.5.0
 
 > ⚠️ **Untested on real hardware.** The diff logic (`Compare-FacilityVlansToSwitch`) is unit-tested directly, but the actual `Add-VMNetworkAdapter`/`Set-VMNetworkAdapterVlan` reconciliation flow has only been validated statically (syntax/lint/CI), not run against a real switch with real drift/missing-VLAN scenarios.
