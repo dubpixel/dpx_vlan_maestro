@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.3.1
+
+> ⚠️ **Hyper-V behavior untested on real hardware**, same caveat as v2.3.0
+> below — this release only restructures the Add-single-VLAN mode's
+> prompt flow, doesn't change what the Hyper-V cmdlets do.
+
+### Changed
+- Add single VLAN mode (issue #18, follow-up to #11) now asks up front where the VLAN should be applied — **System only** (Hyper-V, not saved to `vlan_sets.json` — previous default behavior), **JSON only** (saved to the current facility's config, Hyper-V untouched), or **Both**. Replaces the old flow where the VLAN was always applied live and only optionally saved afterward
+- JSON-only runs now skip the switch-selection and DHCP/IP prompts entirely, since neither is relevant to a config-only save
+- Updated version to 2.3.1 and ASCII art title accordingly
+
 ## v2.3.0
 
 > ⚠️ **Hyper-V behavior untested on real hardware.** The Hyper-V cmdlet
