@@ -26,7 +26,7 @@
 #
 # ================================================================================
 # PROJECT: DPX_VLAN_MAESTRO
-# VERSION: 2.3.1
+# VERSION: 2.4.0
 # ================================================================================
 #
 # [File-specific information]
@@ -96,7 +96,7 @@ Write-Host "║                           ██║  ██║██╔═══
 Write-Host "║                           ██████╔╝██║     ██╔╝ ██╗                           ║" -ForegroundColor Cyan
 Write-Host "║                           ╚═════╝ ╚═╝     ╚═╝  ╚═╝                           ║" -ForegroundColor Cyan
 Write-Host "║                                                                              ║" -ForegroundColor Cyan
-Write-Host "║                             VLAN MAESTRO v2.3.1                              ║" -ForegroundColor Yellow
+Write-Host "║                             VLAN MAESTRO v2.4.0                              ║" -ForegroundColor Yellow
 Write-Host "║                      Hyper-V Network Configuration Tool                      ║" -ForegroundColor Yellow
 Write-Host "╚══════════════════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
 Write-Host ""
@@ -107,7 +107,7 @@ Clear-Host
 
 # Warning Message
 Write-Host "╔══════════════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-Write-Host "║                             VLAN MAESTRO v2.3.1                              ║" -ForegroundColor Yellow
+Write-Host "║                             VLAN MAESTRO v2.4.0                              ║" -ForegroundColor Yellow
 Write-Host "║                      Hyper-V Network Configuration Tool                      ║" -ForegroundColor Yellow
 Write-Host "╠══════════════════════════════════════════════════════════════════════════════╣" -ForegroundColor Red
 Write-Host "║                              ⚠️  WARNING ⚠️                                    ║" -ForegroundColor Red
@@ -219,6 +219,141 @@ function Add-VlanToFacilityConfig {
     }
 }
 
+# Function to check a facility name is non-empty and not already used
+function Test-FacilityNameAvailable {
+    param([string]$FacilityName, [array]$ExistingFacilityNames)
+    if ([string]::IsNullOrWhiteSpace($FacilityName)) {
+        return $false
+    }
+    return ($ExistingFacilityNames -notcontains $FacilityName)
+}
+
+# Function to add a brand-new facility to vlan_sets.json. FacilityData must
+# have vlans/ipBase/ipPrompts/ipDefaults/subnet keys, same shape as an
+# existing facility entry. Returns $false without writing anything if the
+# facility name is already taken.
+function Add-FacilityToConfig {
+    param(
+        [string]$JsonPath,
+        [string]$FacilityName,
+        [hashtable]$FacilityData
+    )
+    try {
+        $rawJson = Get-Content $JsonPath -Raw | ConvertFrom-Json
+        $existingNames = $rawJson.vlanSets.PSObject.Properties.Name
+        if (!(Test-FacilityNameAvailable -FacilityName $FacilityName -ExistingFacilityNames $existingNames)) {
+            Write-Warning "Facility '$FacilityName' already exists (or name is empty) in $JsonPath"
+            return $false
+        }
+        $rawJson.vlanSets | Add-Member -MemberType NoteProperty -Name $FacilityName -Value ([PSCustomObject]$FacilityData)
+        $rawJson | ConvertTo-Json -Depth 10 | Set-Content $JsonPath
+        return $true
+    } catch {
+        Write-Warning "Error saving to $($JsonPath): $($_.Exception.Message)"
+        return $false
+    }
+}
+
+# Function to remove a single VLAN entry (by VlanId) from a facility.
+# Returns $false if the facility or the VLAN ID within it wasn't found.
+function Remove-VlanFromFacilityConfig {
+    param(
+        [string]$JsonPath,
+        [string]$FacilityName,
+        [int]$VlanId
+    )
+    try {
+        $rawJson = Get-Content $JsonPath -Raw | ConvertFrom-Json
+        $facilityNode = $rawJson.vlanSets.$FacilityName
+        if (!$facilityNode) {
+            Write-Warning "Facility '$FacilityName' not found in $JsonPath"
+            return $false
+        }
+        $existingVlans = @($facilityNode.vlans)
+        $remaining = @($existingVlans | Where-Object { [int]$_.VlanId -ne $VlanId })
+        if ($remaining.Count -eq $existingVlans.Count) {
+            Write-Warning "VLAN ID $VlanId not found in facility '$FacilityName'"
+            return $false
+        }
+        $facilityNode.vlans = $remaining
+        $rawJson | ConvertTo-Json -Depth 10 | Set-Content $JsonPath
+        return $true
+    } catch {
+        Write-Warning "Error saving to $($JsonPath): $($_.Exception.Message)"
+        return $false
+    }
+}
+
+# Function to rename the Name field of a VLAN entry (identified by VlanId)
+# within a facility. Returns $false if the facility or VLAN ID isn't found.
+function Rename-VlanInFacilityConfig {
+    param(
+        [string]$JsonPath,
+        [string]$FacilityName,
+        [int]$VlanId,
+        [string]$NewName
+    )
+    try {
+        $rawJson = Get-Content $JsonPath -Raw | ConvertFrom-Json
+        $facilityNode = $rawJson.vlanSets.$FacilityName
+        if (!$facilityNode) {
+            Write-Warning "Facility '$FacilityName' not found in $JsonPath"
+            return $false
+        }
+        $target = @($facilityNode.vlans) | Where-Object { [int]$_.VlanId -eq $VlanId }
+        if (!$target) {
+            Write-Warning "VLAN ID $VlanId not found in facility '$FacilityName'"
+            return $false
+        }
+        $target.Name = $NewName
+        $rawJson | ConvertTo-Json -Depth 10 | Set-Content $JsonPath
+        return $true
+    } catch {
+        Write-Warning "Error saving to $($JsonPath): $($_.Exception.Message)"
+        return $false
+    }
+}
+
+# Function to update a facility's IP configuration fields (ipBase,
+# ipPrompts, ipDefaults, subnet) without touching its vlans list. Returns
+# $false if the facility isn't found.
+function Set-FacilityIpConfig {
+    param(
+        [string]$JsonPath,
+        [string]$FacilityName,
+        [string]$IpBase,
+        [array]$IpPrompts,
+        [hashtable]$IpDefaults,
+        [string]$Subnet
+    )
+    try {
+        $rawJson = Get-Content $JsonPath -Raw | ConvertFrom-Json
+        $facilityNode = $rawJson.vlanSets.$FacilityName
+        if (!$facilityNode) {
+            Write-Warning "Facility '$FacilityName' not found in $JsonPath"
+            return $false
+        }
+        $facilityNode.ipBase = $IpBase
+        $facilityNode.ipPrompts = $IpPrompts
+        $facilityNode.ipDefaults = [PSCustomObject]$IpDefaults
+        $facilityNode.subnet = $Subnet
+        $rawJson | ConvertTo-Json -Depth 10 | Set-Content $JsonPath
+        return $true
+    } catch {
+        Write-Warning "Error saving to $($JsonPath): $($_.Exception.Message)"
+        return $false
+    }
+}
+
+# Function to extract {token} placeholder names from an ipBase template,
+# excluding "vlan" (which is always auto-filled from the VLAN ID itself,
+# never prompted or defaulted).
+function Get-IpBaseTokens {
+    param([string]$IpBase)
+    $matches = [regex]::Matches($IpBase, '\{(\w+)\}')
+    return @($matches | ForEach-Object { $_.Groups[1].Value } | Where-Object { $_ -ne 'vlan' } | Select-Object -Unique)
+}
+
 # Function to convert CIDR notation to subnet mask
 function Convert-CidrToSubnetMask {
     param([int]$cidr)
@@ -230,7 +365,7 @@ function Convert-CidrToSubnetMask {
 # Input validation functions
 function Test-ModeChoice {
     param([string]$input)
-    return ([string]::IsNullOrWhiteSpace($input) -or $input -eq "1" -or $input -eq "2" -or $input -eq "3" -or $input -eq "4")
+    return ([string]::IsNullOrWhiteSpace($input) -or $input -eq "1" -or $input -eq "2" -or $input -eq "3" -or $input -eq "4" -or $input -eq "5")
 }
 
 # Function to validate IP address against subnet mask
@@ -451,7 +586,8 @@ $validModes = @{
     "1" = @{ name = "Normal"; description = "Normal (create switch and adapters, then IP)"; ipOnly = $false; nukeAll = $false; addSingle = $false }
     "2" = @{ name = "IP only"; description = "IP only (skip creation, only assign IPs)"; ipOnly = $true; nukeAll = $false; addSingle = $false }
     "3" = @{ name = "Nuke all"; description = "Nuke all (remove all virtual switches except default)"; ipOnly = $false; nukeAll = $true; addSingle = $false }
-    "4" = @{ name = "Add single VLAN"; description = "Add a single ad-hoc VLAN (guided prompts, no facility config needed)"; ipOnly = $false; nukeAll = $false; addSingle = $true }
+    "4" = @{ name = "Add single VLAN"; description = "Add a single ad-hoc VLAN (guided prompts, no facility config needed)"; ipOnly = $false; nukeAll = $false; addSingle = $true; schemaEdit = $false }
+    "5" = @{ name = "Manage facility schemas"; description = "Add a new facility or edit an existing one's VLANs/IP config in vlan_sets.json"; ipOnly = $false; nukeAll = $false; addSingle = $false; schemaEdit = $true }
 }
 Write-Host "═══════════════════════════════════════"
 # Prompt for mode
@@ -462,10 +598,10 @@ foreach ($key in $validModes.Keys | Sort-Object) {
 
 # Validate mode choice input
 do {
-    $modeChoice = Read-Host 'Enter choice (1, 2, 3, or 4, press Enter for Normal):'
+    $modeChoice = Read-Host 'Enter choice (1, 2, 3, 4, or 5, press Enter for Normal):'
     $isValidMode = ([string]::IsNullOrWhiteSpace($modeChoice) -or $validModes.ContainsKey($modeChoice))
     if (!$isValidMode) {
-        Write-Host "Invalid choice. Please enter 1, 2, 3, 4, or press Enter for Normal." -ForegroundColor Red
+        Write-Host "Invalid choice. Please enter 1, 2, 3, 4, 5, or press Enter for Normal." -ForegroundColor Red
     }
 } while (!$isValidMode)
 
@@ -477,6 +613,7 @@ if ([string]::IsNullOrWhiteSpace($modeChoice)) {
 
 $ipOnly = $selectedMode.ipOnly
 $nukeAll = $selectedMode.nukeAll
+$schemaEdit = $selectedMode.schemaEdit
 $addSingle = $selectedMode.addSingle
 Write-Host "══════════════════════════════════════════════════════════════════════════════"
 # Handle nuke all mode
@@ -741,6 +878,312 @@ if ($addSingle) {
     }
 
     Write-Host "Add single VLAN operation completed."
+    exit
+}
+
+# Handle "Manage facility schemas" mode: add a brand-new facility or edit
+# an existing one's VLANs/IP config directly in vlan_sets.json. Always
+# JSON-only — this never touches the in-script $hardcoded* fallback
+# variables, which stay as a static safety net for 4Wall/Dapper/Desert
+# only, same as before this feature existed.
+if ($schemaEdit) {
+    Write-Host "MANAGE FACILITY SCHEMAS: Add a new facility or edit an existing one in vlan_sets.json."
+    Write-Host "══════════════════════════════════════════════════════════════════════════════"
+
+    if (!(Test-Path $vlanConfigPath)) {
+        Write-Host "No vlan_sets.json found at $vlanConfigPath. Creating a fresh empty one." -ForegroundColor Yellow
+        [PSCustomObject]@{ vlanSets = [PSCustomObject]@{} } | ConvertTo-Json -Depth 10 | Set-Content $vlanConfigPath
+    }
+
+    Write-Host "1. Add a new facility"
+    Write-Host "2. Edit an existing facility"
+    do {
+        $schemaActionChoice = Read-Host "Enter choice (1 or 2)"
+        $isValidSchemaAction = ($schemaActionChoice -eq "1" -or $schemaActionChoice -eq "2")
+        if (!$isValidSchemaAction) {
+            Write-Host "Invalid choice. Please enter 1 or 2." -ForegroundColor Red
+        }
+    } while (!$isValidSchemaAction)
+
+    $currentJson = Get-Content $vlanConfigPath -Raw | ConvertFrom-Json
+    $currentFacilityNames = @($currentJson.vlanSets.PSObject.Properties.Name)
+
+    if ($schemaActionChoice -eq "1") {
+        # --- Add a new facility ---
+        Write-Host "══════════════════════════════════════════════════════════════════════════════"
+        do {
+            $newFacilityName = Read-Host "Enter the new facility name"
+            $isValidFacilityName = Test-FacilityNameAvailable -FacilityName $newFacilityName -ExistingFacilityNames $currentFacilityNames
+            if (!$isValidFacilityName) {
+                Write-Host "Invalid or already-used facility name. Please enter a unique, non-empty name." -ForegroundColor Red
+            }
+        } while (!$isValidFacilityName)
+
+        $newVlans = @()
+        $addingVlans = $true
+        while ($addingVlans) {
+            $newVlanName = Read-Host "Enter VLAN adapter name (e.g. 196_Engineering)"
+            do {
+                $newVlanIdInput = Read-Host "Enter VLAN ID (1-4094)"
+                $isValidNewVlanId = $false
+                try {
+                    $newVlanId = [int]$newVlanIdInput
+                    $isValidNewVlanId = Test-VlanIdInRange -VlanId $newVlanId
+                } catch {
+                    $isValidNewVlanId = $false
+                }
+                if (!$isValidNewVlanId) {
+                    Write-Host "Invalid VLAN ID. Please enter a number between 1 and 4094." -ForegroundColor Red
+                } elseif (Test-VlanIdCollision -VlanId $newVlanId -ExistingVlanIds ($newVlans | ForEach-Object { $_.VlanId })) {
+                    Write-Host "VLAN ID $newVlanId is already used earlier in this new facility. Please enter a different one." -ForegroundColor Red
+                    $isValidNewVlanId = $false
+                }
+            } while (!$isValidNewVlanId)
+            $newVlans += [PSCustomObject]@{ Name = $newVlanName; VlanId = $newVlanId }
+
+            if ($newVlans.Count -ge 1) {
+                $addAnother = Read-Host "Add another VLAN? (y/N)"
+                $addingVlans = ($addAnother -match '^[Yy]')
+            }
+        }
+
+        Write-Host "══════════════════════════════════════════════════════════════════════════════"
+        $newIpBase = Read-Host "Enter the ipBase template (e.g. 10.{vlan}.{third}.{fourth})"
+        $newIpPrompts = @()
+        $newIpDefaults = @{}
+        foreach ($token in (Get-IpBaseTokens -IpBase $newIpBase)) {
+            $tokenChoice = Read-Host "For '{$token}': prompt at runtime, or use a fixed default? (p/d, press Enter for p)"
+            if ($tokenChoice -match '^[Dd]') {
+                $defaultValue = Read-Host "Enter the fixed default value for '$token'"
+                $newIpDefaults[$token] = $defaultValue
+            } else {
+                $newIpPrompts += $token
+            }
+        }
+        $newSubnet = Read-Host "Enter the subnet (dotted mask like 255.255.255.0, or CIDR like /24)"
+
+        $facilityData = @{
+            vlans      = $newVlans
+            ipBase     = $newIpBase
+            ipPrompts  = $newIpPrompts
+            ipDefaults = $newIpDefaults
+            subnet     = $newSubnet
+        }
+
+        Write-Host "══════════════════════════════════════════════════════════════════════════════"
+        Write-Host "Confirm new facility '$newFacilityName':" -ForegroundColor Cyan
+        foreach ($v in $newVlans) {
+            Write-Host "  VLAN $($v.VlanId): $($v.Name)"
+        }
+        Write-Host "  ipBase:     $newIpBase"
+        Write-Host "  ipPrompts:  $($newIpPrompts -join ', ')"
+        Write-Host "  ipDefaults: $(($newIpDefaults.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" }) -join ', ')"
+        Write-Host "  subnet:     $newSubnet"
+        $confirmNewFacility = Read-Host "Write this facility to vlan_sets.json? (y/N)"
+        if ($confirmNewFacility -match '^[Yy]') {
+            $saved = Add-FacilityToConfig -JsonPath $vlanConfigPath -FacilityName $newFacilityName -FacilityData $facilityData
+            if ($saved) {
+                Write-Host "✓ Added facility '$newFacilityName' to $vlanConfigPath" -ForegroundColor Green
+            } else {
+                Write-Host "✗ Could not add facility '$newFacilityName' — see warning above." -ForegroundColor Red
+            }
+        } else {
+            Write-Host "Operation cancelled."
+        }
+    } else {
+        # --- Edit an existing facility ---
+        if ($currentFacilityNames.Count -eq 0) {
+            Write-Host "No facilities defined in $vlanConfigPath yet." -ForegroundColor Red
+            exit
+        }
+        Write-Host "══════════════════════════════════════════════════════════════════════════════"
+        Write-Host "Existing facilities:"
+        for ($i = 0; $i -lt $currentFacilityNames.Count; $i++) {
+            Write-Host "$($i+1). $($currentFacilityNames[$i])"
+        }
+        do {
+            $facilityChoice = Read-Host "Select a facility by number (1-$($currentFacilityNames.Count))"
+            $isValidFacilityChoice = $false
+            try {
+                $num = [int]$facilityChoice
+                if ($num -ge 1 -and $num -le $currentFacilityNames.Count) {
+                    $isValidFacilityChoice = $true
+                }
+            } catch {
+                $isValidFacilityChoice = $false
+            }
+            if (!$isValidFacilityChoice) {
+                Write-Host "Invalid choice. Please enter a number between 1 and $($currentFacilityNames.Count)." -ForegroundColor Red
+            }
+        } while (!$isValidFacilityChoice)
+        $editFacilityName = $currentFacilityNames[$facilityChoice - 1]
+        $editFacilityNode = $currentJson.vlanSets.$editFacilityName
+
+        Write-Host "══════════════════════════════════════════════════════════════════════════════"
+        Write-Host "Editing '$editFacilityName':"
+        Write-Host "1. Add a VLAN"
+        Write-Host "2. Remove a VLAN"
+        Write-Host "3. Rename a VLAN"
+        Write-Host "4. Edit IP config (ipBase/ipPrompts/ipDefaults/subnet)"
+        do {
+            $editActionChoice = Read-Host "Enter choice (1-4)"
+            $isValidEditAction = ($editActionChoice -eq "1" -or $editActionChoice -eq "2" -or $editActionChoice -eq "3" -or $editActionChoice -eq "4")
+            if (!$isValidEditAction) {
+                Write-Host "Invalid choice. Please enter 1, 2, 3, or 4." -ForegroundColor Red
+            }
+        } while (!$isValidEditAction)
+
+        $existingFacilityVlanIds = @($editFacilityNode.vlans | ForEach-Object { [int]$_.VlanId })
+
+        switch ($editActionChoice) {
+            "1" {
+                $addVlanName = Read-Host "Enter VLAN adapter name"
+                do {
+                    $addVlanIdInput = Read-Host "Enter VLAN ID (1-4094)"
+                    $isValidAddVlanId = $false
+                    try {
+                        $addVlanId = [int]$addVlanIdInput
+                        $isValidAddVlanId = Test-VlanIdInRange -VlanId $addVlanId
+                    } catch {
+                        $isValidAddVlanId = $false
+                    }
+                    if (!$isValidAddVlanId) {
+                        Write-Host "Invalid VLAN ID. Please enter a number between 1 and 4094." -ForegroundColor Red
+                    } elseif (Test-VlanIdCollision -VlanId $addVlanId -ExistingVlanIds $existingFacilityVlanIds) {
+                        Write-Host "VLAN ID $addVlanId is already used in '$editFacilityName'. Please enter a different one." -ForegroundColor Red
+                        $isValidAddVlanId = $false
+                    }
+                } while (!$isValidAddVlanId)
+
+                $confirmAdd = Read-Host "Add VLAN $addVlanId ('$addVlanName') to '$editFacilityName'? (y/N)"
+                if ($confirmAdd -match '^[Yy]') {
+                    $saved = Add-VlanToFacilityConfig -JsonPath $vlanConfigPath -FacilityName $editFacilityName -VlanName $addVlanName -VlanId $addVlanId
+                    if ($saved) {
+                        Write-Host "✓ Added VLAN $addVlanId to '$editFacilityName'" -ForegroundColor Green
+                    } else {
+                        Write-Host "✗ Could not add VLAN — see warning above." -ForegroundColor Red
+                    }
+                } else {
+                    Write-Host "Operation cancelled."
+                }
+            }
+            "2" {
+                Write-Host "Current VLANs in '$editFacilityName':"
+                $vlanList = @($editFacilityNode.vlans)
+                for ($i = 0; $i -lt $vlanList.Count; $i++) {
+                    Write-Host "$($i+1). VLAN $($vlanList[$i].VlanId) ($($vlanList[$i].Name))"
+                }
+                do {
+                    $removeChoice = Read-Host "Select a VLAN to remove by number (1-$($vlanList.Count))"
+                    $isValidRemoveChoice = $false
+                    try {
+                        $num = [int]$removeChoice
+                        if ($num -ge 1 -and $num -le $vlanList.Count) {
+                            $isValidRemoveChoice = $true
+                        }
+                    } catch {
+                        $isValidRemoveChoice = $false
+                    }
+                    if (!$isValidRemoveChoice) {
+                        Write-Host "Invalid choice. Please enter a number between 1 and $($vlanList.Count)." -ForegroundColor Red
+                    }
+                } while (!$isValidRemoveChoice)
+                $vlanToRemove = $vlanList[$removeChoice - 1]
+
+                $confirmRemove = Read-Host "Remove VLAN $($vlanToRemove.VlanId) ('$($vlanToRemove.Name)') from '$editFacilityName'? (y/N)"
+                if ($confirmRemove -match '^[Yy]') {
+                    $saved = Remove-VlanFromFacilityConfig -JsonPath $vlanConfigPath -FacilityName $editFacilityName -VlanId ([int]$vlanToRemove.VlanId)
+                    if ($saved) {
+                        Write-Host "✓ Removed VLAN $($vlanToRemove.VlanId) from '$editFacilityName'" -ForegroundColor Green
+                    } else {
+                        Write-Host "✗ Could not remove VLAN — see warning above." -ForegroundColor Red
+                    }
+                } else {
+                    Write-Host "Operation cancelled."
+                }
+            }
+            "3" {
+                Write-Host "Current VLANs in '$editFacilityName':"
+                $vlanList = @($editFacilityNode.vlans)
+                for ($i = 0; $i -lt $vlanList.Count; $i++) {
+                    Write-Host "$($i+1). VLAN $($vlanList[$i].VlanId) ($($vlanList[$i].Name))"
+                }
+                do {
+                    $renameChoice = Read-Host "Select a VLAN to rename by number (1-$($vlanList.Count))"
+                    $isValidRenameChoice = $false
+                    try {
+                        $num = [int]$renameChoice
+                        if ($num -ge 1 -and $num -le $vlanList.Count) {
+                            $isValidRenameChoice = $true
+                        }
+                    } catch {
+                        $isValidRenameChoice = $false
+                    }
+                    if (!$isValidRenameChoice) {
+                        Write-Host "Invalid choice. Please enter a number between 1 and $($vlanList.Count)." -ForegroundColor Red
+                    }
+                } while (!$isValidRenameChoice)
+                $vlanToRename = $vlanList[$renameChoice - 1]
+                $newVlanName = Read-Host "Enter the new name for VLAN $($vlanToRename.VlanId) (currently '$($vlanToRename.Name)')"
+
+                $confirmRename = Read-Host "Rename VLAN $($vlanToRename.VlanId) to '$newVlanName' in '$editFacilityName'? (y/N)"
+                if ($confirmRename -match '^[Yy]') {
+                    $saved = Rename-VlanInFacilityConfig -JsonPath $vlanConfigPath -FacilityName $editFacilityName -VlanId ([int]$vlanToRename.VlanId) -NewName $newVlanName
+                    if ($saved) {
+                        Write-Host "✓ Renamed VLAN $($vlanToRename.VlanId) to '$newVlanName' in '$editFacilityName'" -ForegroundColor Green
+                    } else {
+                        Write-Host "✗ Could not rename VLAN — see warning above." -ForegroundColor Red
+                    }
+                } else {
+                    Write-Host "Operation cancelled."
+                }
+            }
+            "4" {
+                Write-Host "Current IP config for '$editFacilityName':"
+                Write-Host "  ipBase:     $($editFacilityNode.ipBase)"
+                Write-Host "  ipPrompts:  $($editFacilityNode.ipPrompts -join ', ')"
+                Write-Host "  subnet:     $($editFacilityNode.subnet)"
+
+                $editIpBaseInput = Read-Host "Enter new ipBase (press Enter to keep '$($editFacilityNode.ipBase)')"
+                $editIpBase = if ([string]::IsNullOrWhiteSpace($editIpBaseInput)) { $editFacilityNode.ipBase } else { $editIpBaseInput }
+
+                $editIpPrompts = @()
+                $editIpDefaults = @{}
+                foreach ($token in (Get-IpBaseTokens -IpBase $editIpBase)) {
+                    $tokenChoice = Read-Host "For '{$token}': prompt at runtime, or use a fixed default? (p/d, press Enter for p)"
+                    if ($tokenChoice -match '^[Dd]') {
+                        $defaultValue = Read-Host "Enter the fixed default value for '$token'"
+                        $editIpDefaults[$token] = $defaultValue
+                    } else {
+                        $editIpPrompts += $token
+                    }
+                }
+
+                $editSubnetInput = Read-Host "Enter new subnet (press Enter to keep '$($editFacilityNode.subnet)')"
+                $editSubnet = if ([string]::IsNullOrWhiteSpace($editSubnetInput)) { $editFacilityNode.subnet } else { $editSubnetInput }
+
+                Write-Host "══════════════════════════════════════════════════════════════════════════════"
+                Write-Host "Confirm new IP config for '$editFacilityName':" -ForegroundColor Cyan
+                Write-Host "  ipBase:     $editIpBase"
+                Write-Host "  ipPrompts:  $($editIpPrompts -join ', ')"
+                Write-Host "  ipDefaults: $(($editIpDefaults.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" }) -join ', ')"
+                Write-Host "  subnet:     $editSubnet"
+                $confirmEditIp = Read-Host "Apply this IP config? (y/N)"
+                if ($confirmEditIp -match '^[Yy]') {
+                    $saved = Set-FacilityIpConfig -JsonPath $vlanConfigPath -FacilityName $editFacilityName -IpBase $editIpBase -IpPrompts $editIpPrompts -IpDefaults $editIpDefaults -Subnet $editSubnet
+                    if ($saved) {
+                        Write-Host "✓ Updated IP config for '$editFacilityName'" -ForegroundColor Green
+                    } else {
+                        Write-Host "✗ Could not update IP config — see warning above." -ForegroundColor Red
+                    }
+                } else {
+                    Write-Host "Operation cancelled."
+                }
+            }
+        }
+    }
+
+    Write-Host "Schema editor operation completed."
     exit
 }
 Write-Host "══════════════════════════════════════════════════════════════════════════════"

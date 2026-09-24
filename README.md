@@ -117,6 +117,7 @@ The script supports multiple facility types (4Wall, Dapper, Desert, HIVE, and cu
 - **IP Only Mode**: Update IP addresses on existing adapters
 - **Nuke All Mode**: Complete cleanup of all virtual switches
 - **Add Single VLAN Mode**: Guided prompts to add one ad-hoc VLAN adapter to an existing switch, no facility config needed
+- **Manage Facility Schemas Mode**: Add a new facility or edit an existing one's VLANs/IP config directly in `vlan_sets.json`, no hand-editing JSON
 
 ### 🔍 **Safety & Validation**
 - Deep cleanup of existing configurations
@@ -403,7 +404,13 @@ At completion, the script displays:
    - If applying to the system: picks an existing target switch (doesn't create a new one), then the same DHCP-or-Static choice as the other modes; Static prompts for a full IP + subnet, validated with the same subnet-math check used elsewhere
    - Shows a confirmation summary before applying anything
 
-7. **Completion**
+7. **Manage Facility Schemas Mode**
+   - **Add a new facility**: prompts for a unique name, one or more VLANs (name + ID, validated for range and uniqueness within the new set), an `ipBase` template, which octets get prompted vs. defaulted, and a subnet — shows a preview and requires confirmation before writing to `vlan_sets.json`
+   - **Edit an existing facility**: pick a facility, then add/remove/rename a VLAN, or edit its `ipBase`/`ipPrompts`/`ipDefaults`/subnet — each action confirms before writing
+   - JSON-only — never touches the in-script hardcoded fallback variables (`$hardcoded4Wall` etc.), which stay as a static safety net for 4Wall/Dapper/Desert only
+   - Deleting a facility entirely isn't supported (higher risk, considered a follow-up if ever needed)
+
+8. **Completion**
    - Script assigns static IPs to all virtual adapters (in Normal/IP-only modes)
    - Displays progress and completion status
 
