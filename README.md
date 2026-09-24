@@ -51,7 +51,10 @@
    <br />
 <!-- TABLE OF CONTENTS -->
 <details>
-  <summary><h3>Table of Contents</h3></summary>
+  <summary>
+<h3>Table of Contents</h3>
+</summary>
+
 <ol>
     <li>
       <a href="#about-the-project">About The Project</a>
@@ -77,7 +80,10 @@
 </details>
 <!-- ABOUT THE PROJECT -->
 <details>
-<summary><h3>About The Project</h3></summary>
+<summary>
+<h3>About The Project</h3>
+</summary>
+
 DPX_VLAN_MAESTRO is a comprehensive PowerShell automation script for Windows Hyper-V environments. It simplifies the complex process of setting up virtual network infrastructure by creating virtual switches, VLAN-tagged network adapters, and assigning static IP addresses according to facility-specific configurations.
 
 The script supports multiple facility types (4Wall, Dapper, Desert, HIVE, and custom configurations) with dynamic VLAN set loading from external JSON files. It includes robust validation, safety features, and multiple operation modes to handle different network management scenarios.
@@ -259,7 +265,9 @@ self-hosted runner on one) can verify that part.
 ## Configuration
 
 <details>
-<summary><strong>⚙️ Click to expand configuration guide</strong></summary>
+<summary>
+<strong>⚙️ Click to expand configuration guide</strong>
+</summary>
 
 ### VLAN Sets Configuration
 
@@ -402,7 +410,9 @@ At completion, the script displays:
 
 
 <details>
-<summary><strong>📋 Click to expand usage examples</strong></summary>
+<summary>
+<strong>📋 Click to expand usage examples</strong>
+</summary>
 
 #### **Scenario 1: Complete Setup (Normal Mode)**
 Setting up a new Hyper-V host with Dapper VLAN configuration:
@@ -603,7 +613,9 @@ Script completed.
 ## Troubleshooting
 
 <details>
-<summary><strong>🔧 Click to expand troubleshooting guide</strong></summary>
+<summary>
+<strong>🔧 Click to expand troubleshooting guide</strong>
+</summary>
 
 ### Common Issues and Solutions
 
