@@ -26,7 +26,7 @@
 #
 # ================================================================================
 # PROJECT: DPX_VLAN_MAESTRO
-# VERSION: 2.4.0
+# VERSION: 2.5.0
 # ================================================================================
 #
 # [File-specific information]
@@ -96,7 +96,7 @@ Write-Host "║                           ██║  ██║██╔═══
 Write-Host "║                           ██████╔╝██║     ██╔╝ ██╗                           ║" -ForegroundColor Cyan
 Write-Host "║                           ╚═════╝ ╚═╝     ╚═╝  ╚═╝                           ║" -ForegroundColor Cyan
 Write-Host "║                                                                              ║" -ForegroundColor Cyan
-Write-Host "║                             VLAN MAESTRO v2.4.0                              ║" -ForegroundColor Yellow
+Write-Host "║                             VLAN MAESTRO v2.5.0                              ║" -ForegroundColor Yellow
 Write-Host "║                      Hyper-V Network Configuration Tool                      ║" -ForegroundColor Yellow
 Write-Host "╚══════════════════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
 Write-Host ""
@@ -107,7 +107,7 @@ Clear-Host
 
 # Warning Message
 Write-Host "╔══════════════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-Write-Host "║                             VLAN MAESTRO v2.4.0                              ║" -ForegroundColor Yellow
+Write-Host "║                             VLAN MAESTRO v2.5.0                              ║" -ForegroundColor Yellow
 Write-Host "║                      Hyper-V Network Configuration Tool                      ║" -ForegroundColor Yellow
 Write-Host "╠══════════════════════════════════════════════════════════════════════════════╣" -ForegroundColor Red
 Write-Host "║                              ⚠️  WARNING ⚠️                                    ║" -ForegroundColor Red
@@ -354,6 +354,48 @@ function Get-IpBaseTokens {
     return @($matches | ForEach-Object { $_.Groups[1].Value } | Where-Object { $_ -ne 'vlan' } | Select-Object -Unique)
 }
 
+# Function to diff a facility's configured VLAN list against what's
+# actually present on a switch, by adapter Name (the identity Add-VMNetworkAdapter
+# uses throughout this script). Returns three buckets:
+#   ToAdd          - facility VLANs with no matching adapter Name on the switch
+#   Drifted        - facility VLANs whose Name matches an existing adapter, but
+#                    the live VlanId differs from the config (flagged, never
+#                    auto-corrected -- see issue #10's scope decision)
+#   AlreadyPresent - facility VLANs whose Name+VlanId already match exactly
+function Compare-FacilityVlansToSwitch {
+    param([array]$FacilityVlans, [array]$ExistingVlans)
+
+    $existingByName = @{}
+    foreach ($existing in $ExistingVlans) {
+        $existingByName[$existing.Name] = $existing
+    }
+
+    $toAdd = @()
+    $drifted = @()
+    $alreadyPresent = @()
+
+    foreach ($facilityVlan in $FacilityVlans) {
+        $match = $existingByName[$facilityVlan.Name]
+        if (!$match) {
+            $toAdd += $facilityVlan
+        } elseif ([int]$match.VlanId -ne [int]$facilityVlan.VlanId) {
+            $drifted += [PSCustomObject]@{
+                Name           = $facilityVlan.Name
+                ConfiguredVlan = [int]$facilityVlan.VlanId
+                LiveVlan       = [int]$match.VlanId
+            }
+        } else {
+            $alreadyPresent += $facilityVlan
+        }
+    }
+
+    return [PSCustomObject]@{
+        ToAdd          = @($toAdd)
+        Drifted        = @($drifted)
+        AlreadyPresent = @($alreadyPresent)
+    }
+}
+
 # Function to convert CIDR notation to subnet mask
 function Convert-CidrToSubnetMask {
     param([int]$cidr)
@@ -365,7 +407,7 @@ function Convert-CidrToSubnetMask {
 # Input validation functions
 function Test-ModeChoice {
     param([string]$input)
-    return ([string]::IsNullOrWhiteSpace($input) -or $input -eq "1" -or $input -eq "2" -or $input -eq "3" -or $input -eq "4" -or $input -eq "5")
+    return ([string]::IsNullOrWhiteSpace($input) -or $input -eq "1" -or $input -eq "2" -or $input -eq "3" -or $input -eq "4" -or $input -eq "5" -or $input -eq "6")
 }
 
 # Function to validate IP address against subnet mask
@@ -587,7 +629,8 @@ $validModes = @{
     "2" = @{ name = "IP only"; description = "IP only (skip creation, only assign IPs)"; ipOnly = $true; nukeAll = $false; addSingle = $false }
     "3" = @{ name = "Nuke all"; description = "Nuke all (remove all virtual switches except default)"; ipOnly = $false; nukeAll = $true; addSingle = $false }
     "4" = @{ name = "Add single VLAN"; description = "Add a single ad-hoc VLAN (guided prompts, no facility config needed)"; ipOnly = $false; nukeAll = $false; addSingle = $true; schemaEdit = $false }
-    "5" = @{ name = "Manage facility schemas"; description = "Add a new facility or edit an existing one's VLANs/IP config in vlan_sets.json"; ipOnly = $false; nukeAll = $false; addSingle = $false; schemaEdit = $true }
+    "5" = @{ name = "Manage facility schemas"; description = "Add a new facility or edit an existing one's VLANs/IP config in vlan_sets.json"; ipOnly = $false; nukeAll = $false; addSingle = $false; schemaEdit = $true; updateExisting = $false }
+    "6" = @{ name = "Update existing"; description = "Update existing (add only the facility's VLANs missing from an already-configured switch)"; ipOnly = $false; nukeAll = $false; addSingle = $false; schemaEdit = $false; updateExisting = $true }
 }
 Write-Host "═══════════════════════════════════════"
 # Prompt for mode
@@ -598,10 +641,10 @@ foreach ($key in $validModes.Keys | Sort-Object) {
 
 # Validate mode choice input
 do {
-    $modeChoice = Read-Host 'Enter choice (1, 2, 3, 4, or 5, press Enter for Normal):'
+    $modeChoice = Read-Host 'Enter choice (1-6, press Enter for Normal):'
     $isValidMode = ([string]::IsNullOrWhiteSpace($modeChoice) -or $validModes.ContainsKey($modeChoice))
     if (!$isValidMode) {
-        Write-Host "Invalid choice. Please enter 1, 2, 3, 4, 5, or press Enter for Normal." -ForegroundColor Red
+        Write-Host "Invalid choice. Please enter 1-6, or press Enter for Normal." -ForegroundColor Red
     }
 } while (!$isValidMode)
 
@@ -615,6 +658,7 @@ $ipOnly = $selectedMode.ipOnly
 $nukeAll = $selectedMode.nukeAll
 $schemaEdit = $selectedMode.schemaEdit
 $addSingle = $selectedMode.addSingle
+$updateExisting = $selectedMode.updateExisting
 Write-Host "══════════════════════════════════════════════════════════════════════════════"
 # Handle nuke all mode
 if ($nukeAll) {
@@ -1184,6 +1228,93 @@ if ($schemaEdit) {
     }
 
     Write-Host "Schema editor operation completed."
+    exit
+}
+
+# Handle "Update existing" mode: reconcile an already-configured switch
+# against the selected facility's current VLAN list, adding only what's
+# missing. Never touches existing adapters, their IPs, or removes anything
+# -- pure additive reconciliation, per issue #10's scope.
+if ($updateExisting) {
+    Write-Host "UPDATE EXISTING MODE: Adding only the facility's VLANs missing from an existing switch."
+    Write-Host "══════════════════════════════════════════════════════════════════════════════"
+
+    $existingSwitches = Get-VMSwitch | Select-Object -ExpandProperty Name
+    if (!$existingSwitches -or $existingSwitches.Count -eq 0) {
+        Write-Host "No virtual switches found. Run Normal mode first to create one." -ForegroundColor Red
+        exit
+    }
+    Write-Host "Existing virtual switches:"
+    for ($i = 0; $i -lt $existingSwitches.Count; $i++) {
+        Write-Host "$($i+1). $($existingSwitches[$i])"
+    }
+    do {
+        $updateSwitchChoice = Read-Host "Select the target switch by number (1-$($existingSwitches.Count))"
+        $isValidUpdateSwitch = $false
+        try {
+            $num = [int]$updateSwitchChoice
+            if ($num -ge 1 -and $num -le $existingSwitches.Count) {
+                $isValidUpdateSwitch = $true
+            }
+        } catch {
+            $isValidUpdateSwitch = $false
+        }
+        if (!$isValidUpdateSwitch) {
+            Write-Host "Invalid choice. Please enter a number between 1 and $($existingSwitches.Count)." -ForegroundColor Red
+        }
+    } while (!$isValidUpdateSwitch)
+    $updateSwitchName = $existingSwitches[$updateSwitchChoice - 1]
+
+    Write-Host "Reading existing VLAN adapters on '$updateSwitchName'..."
+    $existingAdapters = Get-VMNetworkAdapter -ManagementOS | Where-Object { $_.SwitchName -eq $updateSwitchName }
+    $existingVlansOnSwitch = @()
+    foreach ($adapter in $existingAdapters) {
+        $vlanInfo = Get-VMNetworkAdapterVlan -VMNetworkAdapterName $adapter.Name -ManagementOS -ErrorAction SilentlyContinue
+        if ($vlanInfo -and $vlanInfo.OperationMode -eq "Access") {
+            $existingVlansOnSwitch += [PSCustomObject]@{ Name = $adapter.Name; VlanId = [int]$vlanInfo.AccessVlanId }
+        }
+    }
+
+    $diff = Compare-FacilityVlansToSwitch -FacilityVlans $vlans -ExistingVlans $existingVlansOnSwitch
+
+    Write-Host "══════════════════════════════════════════════════════════════════════════════"
+    Write-Host "Reconciliation preview for '$updateSwitchName' against the '$selectedVlanSet' facility:" -ForegroundColor Cyan
+    Write-Host "  Already present (untouched): $($diff.AlreadyPresent.Count)"
+    if ($diff.Drifted.Count -gt 0) {
+        Write-Host "  ⚠ Drifted (name matches, VLAN ID differs on the live switch — skipped, not auto-corrected):" -ForegroundColor Yellow
+        foreach ($d in $diff.Drifted) {
+            Write-Host "    $($d.Name): configured VLAN $($d.ConfiguredVlan), live VLAN $($d.LiveVlan)" -ForegroundColor Yellow
+        }
+    }
+    if ($diff.ToAdd.Count -eq 0) {
+        Write-Host "  Nothing to add — '$updateSwitchName' already has every VLAN in '$selectedVlanSet'." -ForegroundColor Green
+        Write-Host "Update existing operation completed."
+        exit
+    }
+    Write-Host "  To be added:" -ForegroundColor Green
+    foreach ($v in $diff.ToAdd) {
+        Write-Host "    VLAN $($v.VlanId): $($v.Name)"
+    }
+    Write-Host ""
+    Write-Host "Note: this mode only creates the missing adapters — it doesn't assign IPs." -ForegroundColor Yellow
+    Write-Host "Run IP-only mode afterward if the new adapters need IP addresses." -ForegroundColor Yellow
+
+    $confirmUpdate = Read-Host "Add the $($diff.ToAdd.Count) missing VLAN(s) to '$updateSwitchName'? (y/N)"
+    if ($confirmUpdate -notmatch '^[Yy]') {
+        Write-Host "Operation cancelled."
+        exit
+    }
+
+    foreach ($vlan in $diff.ToAdd) {
+        Write-Host "Adding virtual adapter '$($vlan.Name)'..."
+        Add-VMNetworkAdapter -ManagementOS -Name $vlan.Name -SwitchName $updateSwitchName
+        Start-Countdown -seconds $delay
+        Write-Host "Setting VLAN ID $($vlan.VlanId) for '$($vlan.Name)'..."
+        Set-VMNetworkAdapterVlan -VMNetworkAdapterName $vlan.Name -VlanId $vlan.VlanId -Access -ManagementOS
+        Start-Countdown -seconds $delay
+    }
+
+    Write-Host "Update existing operation completed."
     exit
 }
 Write-Host "══════════════════════════════════════════════════════════════════════════════"

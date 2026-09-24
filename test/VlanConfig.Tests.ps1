@@ -273,6 +273,58 @@ Describe 'Schema editor mode helper functions (issue #7)' {
     }
 }
 
+Describe 'Compare-FacilityVlansToSwitch (issue #10 diff logic)' {
+    BeforeAll {
+        $scriptPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'src/vlan_maestro.ps1'
+        $tokens = $null
+        $parseErrors = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile($scriptPath, [ref]$tokens, [ref]$parseErrors)
+        $functionAsts = $ast.FindAll({
+            param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst]
+        }, $true)
+        foreach ($fn in $functionAsts) {
+            . ([scriptblock]::Create($fn.Extent.Text))
+        }
+    }
+
+    It 'puts a VLAN with no matching adapter Name into ToAdd' {
+        $facility = @(@{ Name = 'A'; VlanId = 10 }, @{ Name = 'B'; VlanId = 20 })
+        $existing = @(@{ Name = 'A'; VlanId = 10 })
+        $diff = Compare-FacilityVlansToSwitch -FacilityVlans $facility -ExistingVlans $existing
+        $diff.ToAdd.Count | Should -Be 1
+        $diff.ToAdd[0].Name | Should -Be 'B'
+        $diff.AlreadyPresent.Count | Should -Be 1
+        $diff.Drifted.Count | Should -Be 0
+    }
+
+    It 'flags a matching Name with a different live VlanId as Drifted, not ToAdd' {
+        $facility = @(@{ Name = 'A'; VlanId = 10 })
+        $existing = @(@{ Name = 'A'; VlanId = 99 })
+        $diff = Compare-FacilityVlansToSwitch -FacilityVlans $facility -ExistingVlans $existing
+        $diff.ToAdd.Count | Should -Be 0
+        $diff.Drifted.Count | Should -Be 1
+        $diff.Drifted[0].ConfiguredVlan | Should -Be 10
+        $diff.Drifted[0].LiveVlan | Should -Be 99
+    }
+
+    It 'reports nothing to add when everything already matches' {
+        $facility = @(@{ Name = 'A'; VlanId = 10 }, @{ Name = 'B'; VlanId = 20 })
+        $existing = @(@{ Name = 'A'; VlanId = 10 }, @{ Name = 'B'; VlanId = 20 }, @{ Name = 'C'; VlanId = 30 })
+        $diff = Compare-FacilityVlansToSwitch -FacilityVlans $facility -ExistingVlans $existing
+        $diff.ToAdd.Count | Should -Be 0
+        $diff.Drifted.Count | Should -Be 0
+        $diff.AlreadyPresent.Count | Should -Be 2
+    }
+
+    It 'handles an empty existing-switch list -- everything is ToAdd' {
+        $facility = @(@{ Name = 'A'; VlanId = 10 })
+        $diff = Compare-FacilityVlansToSwitch -FacilityVlans $facility -ExistingVlans @()
+        $diff.ToAdd.Count | Should -Be 1
+        $diff.AlreadyPresent.Count | Should -Be 0
+        $diff.Drifted.Count | Should -Be 0
+    }
+}
+
 Describe 'Mode table sanity (regression: catches copy-paste flag mistakes across modes)' {
     BeforeAll {
         $scriptPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'src/vlan_maestro.ps1'
@@ -291,7 +343,7 @@ Describe 'Mode table sanity (regression: catches copy-paste flag mistakes across
         $script:ValidModes = Invoke-Expression "$($assignment.Extent.Text)`n`$validModes"
     }
 
-    It 'exactly one mode has each of nukeAll/addSingle/schemaEdit set, and Normal/IP-only have none' {
+    It 'exactly one mode has each of nukeAll/addSingle/schemaEdit/updateExisting set, and Normal/IP-only have none' {
         $script:ValidModes['1'].nukeAll | Should -BeFalse
         $script:ValidModes['1'].addSingle | Should -BeFalse
         $script:ValidModes['2'].nukeAll | Should -BeFalse
@@ -299,12 +351,13 @@ Describe 'Mode table sanity (regression: catches copy-paste flag mistakes across
         $script:ValidModes['3'].nukeAll | Should -BeTrue
         $script:ValidModes['4'].addSingle | Should -BeTrue
         $script:ValidModes['5'].schemaEdit | Should -BeTrue
+        $script:ValidModes['6'].updateExisting | Should -BeTrue
     }
 
-    It 'each mode is internally consistent -- exactly one of ipOnly/nukeAll/addSingle/schemaEdit(or none) is true' {
+    It 'each mode is internally consistent -- exactly one of ipOnly/nukeAll/addSingle/schemaEdit/updateExisting (or none) is true' {
         foreach ($key in $script:ValidModes.Keys) {
             $mode = $script:ValidModes[$key]
-            $flags = @($mode.ipOnly, $mode.nukeAll, $mode.addSingle, [bool]$mode.schemaEdit) | Where-Object { $_ }
+            $flags = @($mode.ipOnly, $mode.nukeAll, $mode.addSingle, [bool]$mode.schemaEdit, [bool]$mode.updateExisting) | Where-Object { $_ }
             $flags.Count | Should -BeLessOrEqual 1 -Because "mode '$key' has more than one mutually-exclusive flag set"
         }
     }
