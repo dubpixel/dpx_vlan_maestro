@@ -20,11 +20,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
-      - uses: actions/jekyll-build-pages@v1
-        with:
-          source: ./
-          destination: ./_site
+      - name: Assemble static site
+        run: |
+          mkdir -p _site
+          cp -r web/. _site/
+          mkdir -p _site/images
+          cp images/logo.png _site/images/logo.png
       - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./_site
 
   deploy:
     environment:

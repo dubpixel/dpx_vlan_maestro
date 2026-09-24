@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>dpx_vlan_maestro reference</title>
+  <meta name="description" content="Hyper-V VLAN provisioning CLI for live-event AV production facilities.">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #0a0a0a;
+      --bg-card: #1a1a1a;
+      --bg-code: #131313;
+      --border: #2a2a2a;
+      --gold: #c9a227;
+      --blue: #4a9eff;
+      --green: #4aff7a;
+      --red: #ff4a4a;
+      --yellow: #ffdd4a;
+      --white: #ffffff;
+      --text: #e0e0e0;
+      --text-dim: #888888;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: var(--bg-dark);
+      color: var(--text);
+      font-family: 'Space Grotesk', sans-serif;
+      min-height: 100vh;
+      padding: 24px 16px 60px;
+      line-height: 1.55;
+    }
+
+    .header { text-align: center; margin-bottom: 32px; }
+
+    .header img { height: 64px; margin-bottom: 12px; }
+
+    .header h1 {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--white);
+    }
+
+    .header .tagline {
+      color: var(--text);
+      font-size: 0.98rem;
+      margin-top: 8px;
+      max-width: 620px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .header .subtitle {
+      color: var(--text-dim);
+      font-size: 0.82rem;
+      font-family: 'JetBrains Mono', monospace;
+      margin-top: 10px;
+    }
+
+    .header .badges { margin-top: 14px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+    .header .badges a { color: var(--blue); text-decoration: none; font-size: 0.82rem; font-family: 'JetBrains Mono', monospace; border: 1px solid var(--border); border-radius: 4px; padding: 4px 10px; }
+    .header .badges a:hover { border-color: var(--blue); }
+
+    .main-container { max-width: 980px; margin: 0 auto; }
+
+    nav.toc {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-bottom: 28px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 18px;
+    }
+    nav.toc a { color: var(--text-dim); text-decoration: none; font-size: 0.85rem; font-family: 'JetBrains Mono', monospace; }
+    nav.toc a:hover { color: var(--blue); }
+
+    section { margin-bottom: 40px; }
+
+    section h2 {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.3rem;
+      color: var(--white);
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 10px;
+      margin-bottom: 16px;
+    }
+
+    section h3 {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1rem;
+      color: var(--gold);
+      margin: 20px 0 8px;
+    }
+
+    p { margin-bottom: 12px; color: var(--text); }
+    a { color: var(--blue); }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 18px 20px;
+      margin-bottom: 14px;
+    }
+
+    .mode-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+
+    .mode-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px; }
+    .mode-card .mode-name { font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--white); font-size: 0.95rem; margin-bottom: 6px; }
+    .mode-card .mode-desc { font-size: 0.87rem; color: var(--text-dim); }
+    .mode-card.destructive { border-color: rgba(255,74,74,0.4); }
+    .mode-card.destructive .mode-name { color: var(--red); }
+    .mode-card.json-only { border-color: rgba(74,255,122,0.35); }
+    .mode-card.json-only .mode-name { color: var(--green); }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.87rem; margin-bottom: 8px; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+    th { color: var(--text-dim); font-family: 'JetBrains Mono', monospace; font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.03em; }
+    td { color: var(--text); }
+    td code, td .mono { font-family: 'JetBrains Mono', monospace; color: var(--yellow); font-size: 0.85rem; }
+
+    pre {
+      background: var(--bg-code);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 14px 16px;
+      overflow-x: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      color: var(--text);
+      margin-bottom: 12px;
+    }
+    code { font-family: 'JetBrains Mono', monospace; }
+    p code, li code { background: var(--bg-code); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; color: var(--yellow); font-size: 0.85rem; }
+
+    ul, ol { padding-left: 22px; margin-bottom: 12px; }
+    li { margin-bottom: 6px; }
+
+    .warn {
+      border-left: 3px solid var(--yellow);
+      background: rgba(255,221,74,0.06);
+      padding: 12px 16px;
+      border-radius: 0 6px 6px 0;
+      font-size: 0.88rem;
+      margin-bottom: 14px;
+    }
+    .warn strong { color: var(--yellow); }
+
+    footer {
+      text-align: center;
+      color: var(--text-dim);
+      font-size: 0.8rem;
+      font-family: 'JetBrains Mono', monospace;
+      margin-top: 50px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+    }
+    footer a { color: var(--text-dim); }
+
+    @media (max-width: 600px) {
+      .header h1 { font-size: 1.5rem; }
+      nav.toc { flex-direction: column; gap: 8px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <img src="images/logo.png" alt="dpx logo">
+    <h1>dpx_vlan_maestro</h1>
+    <p class="tagline">Hyper-V VLAN provisioning CLI for live-event AV production facilities — Dante, NDI, KVM, LED, and sACN network segments on a Windows host.</p>
+    <p class="subtitle">reference · v2.5.0</p>
+    <div class="badges">
+      <a href="https://github.com/dubpixel/dpx_vlan_maestro">GitHub</a>
+      <a href="https://github.com/dubpixel/dpx_vlan_maestro/releases">Releases</a>
+      <a href="https://github.com/dubpixel/dpx_vlan_maestro/issues">Issues</a>
+    </div>
+  </div>
+
+  <div class="main-container">
+
+    <nav class="toc">
+      <a href="#overview">Overview</a>
+      <a href="#requirements">Requirements</a>
+      <a href="#modes">Modes</a>
+      <a href="#facilities">Facilities</a>
+      <a href="#schema">JSON schema</a>
+      <a href="#quickstart">Quick start</a>
+      <a href="#testing">Testing</a>
+    </nav>
+
+    <section id="overview">
+      <h2>Overview</h2>
+      <p>
+        <code>vlan_maestro.ps1</code> is a single-file, run-as-Administrator PowerShell wizard
+        that provisions Hyper-V virtual switches and VLAN-tagged network adapters for
+        live-event AV production facilities. It reads VLAN/IP topology from
+        <code>src/vlan_sets.json</code>, falling back to hardcoded facility definitions if
+        that file is missing or invalid.
+      </p>
+      <p>
+        No build step, no package manager — everything lives in <code>src/</code>.
+        Launch it via <code>src/vlan_maestro.bat</code> (bypasses execution policy, pauses
+        at the end) or run the script directly with PowerShell.
+      </p>
+    </section>
+
+    <section id="requirements">
+      <h2>Requirements</h2>
+      <div class="card">
+        <ul>
+          <li>Windows 10/11 <strong>Pro, Enterprise, or Education</strong> (Home edition doesn't support Hyper-V)</li>
+          <li>PowerShell 5.1+ (included with Windows)</li>
+          <li>At least one physical network adapter</li>
+          <li>Administrative privileges</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="modes">
+      <h2>Modes</h2>
+      <div class="mode-grid">
+        <div class="mode-card">
+          <div class="mode-name">1 · Normal</div>
+          <div class="mode-desc">Full setup: pick a physical NIC, create a virtual switch, add a VLAN adapter per facility VLAN, assign IPs.</div>
+        </div>
+        <div class="mode-card">
+          <div class="mode-name">2 · IP only</div>
+          <div class="mode-desc">Skip switch/adapter creation — just reassign IPs on adapters that already exist.</div>
+        </div>
+        <div class="mode-card destructive">
+          <div class="mode-name">3 · Nuke all</div>
+          <div class="mode-desc">Remove every non-default virtual switch and adapter. Gated behind a typed <code>YES</code> confirmation — destructive, verified on real Hyper-V hosts.</div>
+        </div>
+        <div class="mode-card">
+          <div class="mode-name">4 · Add single VLAN</div>
+          <div class="mode-desc">Guided prompts for one ad-hoc VLAN adapter on an existing switch. Choose to apply to the live system, save to <code>vlan_sets.json</code>, or both.</div>
+        </div>
+        <div class="mode-card json-only">
+          <div class="mode-name">5 · Manage facility schemas</div>
+          <div class="mode-desc">Add a new facility or edit an existing one's VLANs/IP config — writes directly to <code>vlan_sets.json</code>. Never touches Hyper-V.</div>
+        </div>
+        <div class="mode-card">
+          <div class="mode-name">6 · Update existing</div>
+          <div class="mode-desc">Diff a facility's VLAN list against an already-configured switch and add only what's missing. Drift is flagged, never auto-corrected.</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="facilities">
+      <h2>Facilities</h2>
+      <p>Facility VLAN sets are real venue network topologies, loaded dynamically from <code>vlan_sets.json</code> — the menu always reflects whatever's currently defined there.</p>
+      <div class="card">
+        <table>
+          <tr><th>Facility</th><th>VLANs</th><th>IP scheme</th></tr>
+          <tr><td class="mono">4Wall</td><td>7</td><td class="mono">10.{vlan}.{third}.{fourth}</td></tr>
+          <tr><td class="mono">Dapper</td><td>10</td><td class="mono">10.{vlan}.{third}.{fourth}</td></tr>
+          <tr><td class="mono">Desert</td><td>13</td><td class="mono">192.168.{vlan}.{fourth}</td></tr>
+          <tr><td class="mono">HIVE</td><td>17</td><td class="mono">192.168.{vlan}.{fourth}</td></tr>
+          <tr><td class="mono">ExampleFacility</td><td>3</td><td class="mono">10.{vlan}.{third}.{fourth}</td></tr>
+        </table>
+      </div>
+      <p>Add or edit facilities interactively with mode 5, or by hand-editing <code>src/vlan_sets.json</code> directly.</p>
+    </section>
+
+    <section id="schema">
+      <h2>vlan_sets.json schema</h2>
+      <p>Each facility is a key under <code>vlanSets</code>:</p>
+      <pre>{
+  "vlanSets": {
+    "4Wall": {
+      "vlans": [
+        {"Name": "196_Engineering", "VlanId": 196},
+        {"Name": "218_Dante", "VlanId": 218}
+      ],
+      "ipBase": "10.{vlan}.{third}.{fourth}",
+      "ipPrompts": ["third", "fourth"],
+      "ipDefaults": {"third": 13},
+      "subnet": "255.254.0.0"
+    }
+  }
+}</pre>
+      <h3>Fields</h3>
+      <div class="card">
+        <table>
+          <tr><th>Field</th><th>Meaning</th></tr>
+          <tr><td class="mono">vlans</td><td>Array of <code>{Name, VlanId}</code> — <code>Name</code> becomes the virtual adapter name, <code>VlanId</code> must be 1–4094 and unique within the facility</td></tr>
+          <tr><td class="mono">ipBase</td><td>IP template. <code>{vlan}</code> is always auto-filled from the VLAN ID; other <code>{tokens}</code> are resolved via <code>ipPrompts</code>/<code>ipDefaults</code></td></tr>
+          <tr><td class="mono">ipPrompts</td><td>Which <code>{tokens}</code> get asked for interactively at runtime</td></tr>
+          <tr><td class="mono">ipDefaults</td><td>Fixed values for tokens not in <code>ipPrompts</code></td></tr>
+          <tr><td class="mono">subnet</td><td>Dotted mask (<code>255.255.255.0</code>) or CIDR (<code>/24</code>)</td></tr>
+        </table>
+      </div>
+      <div class="warn"><strong>Note:</strong> <code>vlan_sets.json</code> always wins over the in-script hardcoded fallback (<code>$hardcoded4Wall</code> etc.) whenever the file is present and valid. The fallback only activates if the file is missing or fails to parse.</div>
+    </section>
+
+    <section id="quickstart">
+      <h2>Quick start</h2>
+      <ol>
+        <li>Clone the repo: <code>git clone https://github.com/dubpixel/dpx_vlan_maestro.git</code></li>
+        <li>Run <code>src/vlan_maestro.bat</code> as Administrator (or <code>powershell -ExecutionPolicy Bypass -File src/vlan_maestro.ps1</code>)</li>
+        <li>Pick a facility, then a mode, and follow the prompts</li>
+      </ol>
+      <p>Full walkthroughs and example transcripts for every mode are in the <a href="https://github.com/dubpixel/dpx_vlan_maestro#readme">README</a>.</p>
+    </section>
+
+    <section id="testing">
+      <h2>Testing</h2>
+      <p>
+        <code>test/VlanConfig.Tests.ps1</code> (Pester) covers syntax checking, <code>vlan_sets.json</code>
+        structure validation, and direct unit tests for every mode's core decision logic —
+        VLAN ID range/collision checks, JSON read-modify-write correctness, and facility diffing.
+        CI runs this suite plus PSScriptAnalyzer on every push via GitHub Actions.
+      </p>
+      <div class="warn">
+        <strong>What CI can't verify:</strong> hosted GitHub runners don't support nested
+        virtualization, so CI can't exercise real Hyper-V cmdlets — only static/data checks.
+        Real-hardware verification happens separately; check the
+        <a href="https://github.com/dubpixel/dpx_vlan_maestro/blob/main/CHANGELOG.md">CHANGELOG</a>
+        for which releases have been confirmed on a live host.
+      </div>
+    </section>
+
+  </div>
+
+  <footer>
+    dpx_vlan_maestro · <a href="https://www.dubpixel.tv">dubpixel.tv</a> · <a href="https://github.com/dubpixel/dpx_vlan_maestro">github.com/dubpixel/dpx_vlan_maestro</a>
+  </footer>
+
+</body>
+</html>

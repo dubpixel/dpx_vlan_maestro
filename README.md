@@ -40,7 +40,7 @@
     PowerShell script that creates virtual switches and VLAN-tagged network adapters for different facility configurations
     <br />
      »  
-     <a href="https://github.com/dubpixel/dpx_vlan_maestro"><strong>Project Here!</strong></a>
+     <a href="https://dubpixel.github.io/dpx_vlan_maestro/"><strong>Manual / Reference</strong></a>
      »  
      <br />
     <a href="https://github.com/dubpixel/dpx_vlan_maestro/issues/new?labels=bug&template=bug-report---.md">Report Bug</a>
