@@ -1,5 +1,23 @@
 # Changelog
 
+## v2.4.0
+
+> ⚠️ **Untested on real hardware for anything Hyper-V-touching.** This
+> release is JSON-only — it never calls a Hyper-V cmdlet — so there's no
+> new Hyper-V-side risk, but the interactive flow itself (prompts,
+> validation, confirmation) hasn't been run end-to-end on a real Windows
+> host yet, only the extracted logic functions are unit-tested.
+
+### Added
+- New "Manage facility schemas" mode (issue #7) — add a new facility or edit an existing one's VLANs/IP config directly in `vlan_sets.json`, no more hand-editing JSON:
+  - **Add new facility**: name (validated unique), one or more VLANs (name + ID, range/uniqueness validated), `ipBase` template with per-token prompt-vs-default choice, and subnet — confirmed with a preview before writing
+  - **Edit existing facility**: add/remove/rename a VLAN, or update `ipBase`/`ipPrompts`/`ipDefaults`/subnet — each write confirmed first
+  - Deliberately JSON-only per explicit decision — never touches the in-script `$hardcoded4Wall`/`$hardcodedDapper`/`$hardcodedDesert` fallback variables, avoiding the far riskier problem of rewriting PowerShell source from PowerShell at runtime. JSON already always wins over the hardcoded fallback whenever the file is present and valid, so this fully solves the schema-drift problem the ticket was filed over
+  - Facility deletion intentionally out of scope (higher risk, left as a possible follow-up)
+- Added six new standalone, testable functions backing the above: `Test-FacilityNameAvailable`, `Add-FacilityToConfig`, `Remove-VlanFromFacilityConfig`, `Rename-VlanInFacilityConfig`, `Set-FacilityIpConfig`, `Get-IpBaseTokens` — each with direct Pester unit tests against temp JSON files in `test/VlanConfig.Tests.ps1`
+- Added a `$validModes` sanity-check test that AST-extracts the mode table and asserts each mode's flags are mutually exclusive — this is a regression test for a real bug caught during this pass, where mode 4's `addSingle` flag got accidentally flipped to `$false` while adding mode 5's `schemaEdit` flag
+- Updated version to 2.4.0 and ASCII art title accordingly
+
 ## v2.3.1
 
 > ⚠️ **Hyper-V behavior untested on real hardware**, same caveat as v2.3.0

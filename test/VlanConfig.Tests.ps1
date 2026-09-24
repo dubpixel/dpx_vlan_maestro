@@ -155,6 +155,158 @@ Describe 'Add single VLAN mode helper functions (issue #11)' {
     }
 }
 
+Describe 'Schema editor mode helper functions (issue #7)' {
+    BeforeAll {
+        $scriptPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'src/vlan_maestro.ps1'
+        $tokens = $null
+        $parseErrors = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile($scriptPath, [ref]$tokens, [ref]$parseErrors)
+        $functionAsts = $ast.FindAll({
+            param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst]
+        }, $true)
+        foreach ($fn in $functionAsts) {
+            . ([scriptblock]::Create($fn.Extent.Text))
+        }
+    }
+
+    Context 'Test-FacilityNameAvailable' {
+        It 'rejects an empty name' {
+            Test-FacilityNameAvailable -FacilityName '' -ExistingFacilityNames @('4Wall') | Should -BeFalse
+        }
+        It 'rejects a name already in use' {
+            Test-FacilityNameAvailable -FacilityName '4Wall' -ExistingFacilityNames @('4Wall', 'Dapper') | Should -BeFalse
+        }
+        It 'accepts a new, non-empty name' {
+            Test-FacilityNameAvailable -FacilityName 'NewVenue' -ExistingFacilityNames @('4Wall', 'Dapper') | Should -BeTrue
+        }
+    }
+
+    Context 'Get-IpBaseTokens' {
+        It 'extracts non-vlan tokens from an ipBase template' {
+            Get-IpBaseTokens -IpBase '10.{vlan}.{third}.{fourth}' | Should -Be @('third', 'fourth')
+        }
+        It 'excludes {vlan} since it is always auto-filled' {
+            Get-IpBaseTokens -IpBase '192.168.{vlan}.{fourth}' | Should -Be @('fourth')
+        }
+        It 'returns an empty array when there are no octet tokens' {
+            @(Get-IpBaseTokens -IpBase '10.0.0.1').Count | Should -Be 0
+        }
+    }
+
+    Context 'JSON-mutating facility functions' {
+        BeforeEach {
+            $script:tempJsonPath = Join-Path ([System.IO.Path]::GetTempPath()) "vlan_sets_test_$([guid]::NewGuid()).json"
+            @{
+                vlanSets = @{
+                    TestFacility = @{
+                        vlans      = @(@{ Name = "10_Existing"; VlanId = 10 }, @{ Name = "20_Existing"; VlanId = 20 })
+                        ipBase     = "192.168.{vlan}.{fourth}"
+                        ipPrompts  = @("fourth")
+                        ipDefaults = @{}
+                        subnet     = "255.255.255.0"
+                    }
+                }
+            } | ConvertTo-Json -Depth 10 | Set-Content $script:tempJsonPath
+        }
+        AfterEach {
+            Remove-Item $script:tempJsonPath -ErrorAction SilentlyContinue
+        }
+
+        It 'Add-FacilityToConfig adds a brand-new facility without disturbing existing ones' {
+            $facilityData = @{
+                vlans      = @(@{ Name = "1_Solo"; VlanId = 1 })
+                ipBase     = "10.{vlan}.{fourth}"
+                ipPrompts  = @("fourth")
+                ipDefaults = @{}
+                subnet     = "255.255.255.0"
+            }
+            $result = Add-FacilityToConfig -JsonPath $script:tempJsonPath -FacilityName 'NewFacility' -FacilityData $facilityData
+            $result | Should -BeTrue
+
+            $reloaded = Get-Content $script:tempJsonPath -Raw | ConvertFrom-Json
+            $reloaded.vlanSets.PSObject.Properties.Name | Should -Contain 'TestFacility'
+            $reloaded.vlanSets.PSObject.Properties.Name | Should -Contain 'NewFacility'
+            $reloaded.vlanSets.NewFacility.vlans.Count | Should -Be 1
+        }
+
+        It 'Add-FacilityToConfig refuses a name that already exists' {
+            $before = Get-Content $script:tempJsonPath -Raw
+            $result = Add-FacilityToConfig -JsonPath $script:tempJsonPath -FacilityName 'TestFacility' -FacilityData @{ vlans = @(); ipBase = ''; ipPrompts = @(); ipDefaults = @{}; subnet = '' } 3>$null
+            $result | Should -BeFalse
+            (Get-Content $script:tempJsonPath -Raw) | Should -Be $before
+        }
+
+        It 'Remove-VlanFromFacilityConfig removes only the targeted VLAN' {
+            $result = Remove-VlanFromFacilityConfig -JsonPath $script:tempJsonPath -FacilityName 'TestFacility' -VlanId 10
+            $result | Should -BeTrue
+
+            $reloaded = Get-Content $script:tempJsonPath -Raw | ConvertFrom-Json
+            $vlans = @($reloaded.vlanSets.TestFacility.vlans)
+            $vlans.Count | Should -Be 1
+            $vlans[0].VlanId | Should -Be 20
+        }
+
+        It 'Remove-VlanFromFacilityConfig returns false for a VLAN ID not in the facility' {
+            $result = Remove-VlanFromFacilityConfig -JsonPath $script:tempJsonPath -FacilityName 'TestFacility' -VlanId 999 3>$null
+            $result | Should -BeFalse
+        }
+
+        It 'Rename-VlanInFacilityConfig renames only the targeted VLAN' {
+            $result = Rename-VlanInFacilityConfig -JsonPath $script:tempJsonPath -FacilityName 'TestFacility' -VlanId 10 -NewName 'Renamed'
+            $result | Should -BeTrue
+
+            $reloaded = Get-Content $script:tempJsonPath -Raw | ConvertFrom-Json
+            $vlans = @($reloaded.vlanSets.TestFacility.vlans)
+            ($vlans | Where-Object { $_.VlanId -eq 10 }).Name | Should -Be 'Renamed'
+            ($vlans | Where-Object { $_.VlanId -eq 20 }).Name | Should -Be '20_Existing'
+        }
+
+        It 'Set-FacilityIpConfig updates IP fields without touching vlans' {
+            $result = Set-FacilityIpConfig -JsonPath $script:tempJsonPath -FacilityName 'TestFacility' -IpBase '10.{vlan}.{third}.{fourth}' -IpPrompts @('third', 'fourth') -IpDefaults @{} -Subnet '255.255.0.0'
+            $result | Should -BeTrue
+
+            $reloaded = Get-Content $script:tempJsonPath -Raw | ConvertFrom-Json
+            $reloaded.vlanSets.TestFacility.ipBase | Should -Be '10.{vlan}.{third}.{fourth}'
+            $reloaded.vlanSets.TestFacility.subnet | Should -Be '255.255.0.0'
+            @($reloaded.vlanSets.TestFacility.vlans).Count | Should -Be 2
+        }
+    }
+}
+
+Describe 'Mode table sanity (regression: catches copy-paste flag mistakes across modes)' {
+    BeforeAll {
+        $scriptPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'src/vlan_maestro.ps1'
+        $tokens = $null
+        $parseErrors = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile($scriptPath, [ref]$tokens, [ref]$parseErrors)
+        $assignment = $ast.FindAll({
+            param($node)
+            $node -is [System.Management.Automation.Language.AssignmentStatementAst] -and
+            $node.Left -is [System.Management.Automation.Language.VariableExpressionAst] -and
+            $node.Left.VariablePath.UserPath -eq 'validModes'
+        }, $true) | Select-Object -First 1
+        $script:ValidModes = Invoke-Expression $assignment.Extent.Text
+    }
+
+    It 'exactly one mode has each of nukeAll/addSingle/schemaEdit set, and Normal/IP-only have none' {
+        $script:ValidModes['1'].nukeAll | Should -BeFalse
+        $script:ValidModes['1'].addSingle | Should -BeFalse
+        $script:ValidModes['2'].nukeAll | Should -BeFalse
+        $script:ValidModes['2'].addSingle | Should -BeFalse
+        $script:ValidModes['3'].nukeAll | Should -BeTrue
+        $script:ValidModes['4'].addSingle | Should -BeTrue
+        $script:ValidModes['5'].schemaEdit | Should -BeTrue
+    }
+
+    It 'each mode is internally consistent -- exactly one of ipOnly/nukeAll/addSingle/schemaEdit(or none) is true' {
+        foreach ($key in $script:ValidModes.Keys) {
+            $mode = $script:ValidModes[$key]
+            $flags = @($mode.ipOnly, $mode.nukeAll, $mode.addSingle, [bool]$mode.schemaEdit) | Where-Object { $_ }
+            $flags.Count | Should -BeLessOrEqual 1 -Because "mode '$key' has more than one mutually-exclusive flag set"
+        }
+    }
+}
+
 Describe 'hardcoded fallback matches vlan_sets.json (regression: catches drift like the AeonPoint->Dapper ipDefaults mismatch)' {
     BeforeAll {
         $repoRoot = Split-Path -Parent $PSScriptRoot
