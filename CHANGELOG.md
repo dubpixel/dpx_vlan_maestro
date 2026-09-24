@@ -1,5 +1,21 @@
 # Changelog
 
+## v2.3.0
+
+> ⚠️ **Untested on real hardware.** New mode logic below has only been
+> validated statically (brace-balance check, CI syntax/lint/Pester) —
+> not yet run against a real Hyper-V host. Treat this release as
+> unverified pending real-world testing (issue #11).
+
+### Added
+- New "Add a single VLAN" mode (issue #11) — guided prompts to add one ad-hoc VLAN adapter to an already-existing virtual switch, independent of any facility's saved `vlan_sets.json` schema:
+  - Prompts for adapter name and VLAN ID (1–4094), warning (not blocking, with confirmation) on collision with a VLAN tag already in use elsewhere on the host
+  - Lets the user pick from existing virtual switches (this mode never creates a new switch/NIC binding)
+  - Offers the same DHCP-vs-Static choice as Normal/IP-only modes; Static prompts for a full IP + subnet mask, validated with the existing `Test-IPAgainstSubnet` helper
+  - Shows a confirmation summary before touching Hyper-V
+  - Optionally offers to also persist the new VLAN into the currently-selected facility's entry in `vlan_sets.json` (defaults to no) — a lightweight bridge toward the interactive schema-editor ticket (#7) without requiring it
+- Updated version to 2.3.0 and ASCII art title accordingly
+
 ## v2.2.2 — HIVE hotfix
 
 > ⚠️ **HIVE facility is untested on real hardware.** This release is
