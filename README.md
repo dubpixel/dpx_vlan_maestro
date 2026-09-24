@@ -110,6 +110,7 @@ The script supports multiple facility types (4Wall, Dapper, Desert, HIVE, and cu
 - **Normal Mode**: Complete setup (switch + adapters + IPs)
 - **IP Only Mode**: Update IP addresses on existing adapters
 - **Nuke All Mode**: Complete cleanup of all virtual switches
+- **Add Single VLAN Mode**: Guided prompts to add one ad-hoc VLAN adapter to an existing switch, no facility config needed
 
 ### 🔍 **Safety & Validation**
 - Deep cleanup of existing configurations
@@ -365,6 +366,7 @@ At completion, the script displays:
    - **Normal Mode**: Creates virtual switch, adapters, and assigns IPs
    - **IP Only Mode**: Skips creation, only assigns IP addresses to existing adapters
    - **Nuke All Mode**: Removes all virtual switches except default/built-in ones (with confirmation)
+   - **Add Single VLAN Mode**: Guided prompts to add one ad-hoc VLAN adapter to an existing switch
 
 3. **Normal Mode Steps**
    - Select physical network adapter from list
@@ -387,7 +389,13 @@ At completion, the script displays:
    - Preserves default/built-in switches (like "Default Switch")
    - Requires explicit confirmation by typing "YES"
 
-6. **Completion**
+6. **Add Single VLAN Mode**
+   - Prompts for adapter name, VLAN ID (1–4094, with a collision warning against VLAN tags already in use), and an existing target switch (doesn't create a new one)
+   - Offers the same DHCP-or-Static choice as the other modes; Static prompts for a full IP + subnet, validated with the same subnet-math check used elsewhere
+   - Shows a confirmation summary before applying anything
+   - Optionally offers to also save the new VLAN into the currently-selected facility's entry in `vlan_sets.json`, for reuse later — declines by default
+
+7. **Completion**
    - Script assigns static IPs to all virtual adapters (in Normal/IP-only modes)
    - Displays progress and completion status
 
@@ -417,7 +425,8 @@ Select mode:
 1. Normal (create switch and adapters, then IP)
 2. IP only (skip creation, only assign IPs)
 3. Nuke all (remove all virtual switches except default)
-Enter choice (1, 2, or 3, press Enter for Normal): 1
+4. Add single VLAN (guided ad-hoc VLAN add on an existing switch)
+Enter choice (1, 2, 3, or 4, press Enter for Normal): 1
 
 Listing available network adapters:
 1. Ethernet - Intel(R) I350 Gigabit Network Connection
@@ -493,7 +502,8 @@ Select mode:
 1. Normal (create switch and adapters, then IP)
 2. IP only (skip creation, only assign IPs)
 3. Nuke all (remove all virtual switches except default)
-Enter choice (1, 2, or 3, press Enter for Normal): 2
+4. Add single VLAN (guided ad-hoc VLAN add on an existing switch)
+Enter choice (1, 2, 3, or 4, press Enter for Normal): 2
 
 Enter the fourth octet for IP addresses: 50
 
@@ -525,7 +535,8 @@ Select mode:
 1. Normal (create switch and adapters, then IP)
 2. IP only (skip creation, only assign IPs)
 3. Nuke all (remove all virtual switches except default)
-Enter choice (1, 2, or 3, press Enter for Normal): 3
+4. Add single VLAN (guided ad-hoc VLAN add on an existing switch)
+Enter choice (1, 2, 3, or 4, press Enter for Normal): 3
 
 NUKE ALL MODE: Removing all virtual switches except default switches...
 WARNING: This will remove ALL user-created virtual switches and their VLAN adapters!

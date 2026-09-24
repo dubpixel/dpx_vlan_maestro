@@ -26,7 +26,7 @@
 #
 # ================================================================================
 # PROJECT: DPX_VLAN_MAESTRO
-# VERSION: 2.2.2
+# VERSION: 2.3.0
 # ================================================================================
 #
 # [File-specific information]
@@ -96,7 +96,7 @@ Write-Host "║                           ██║  ██║██╔═══
 Write-Host "║                           ██████╔╝██║     ██╔╝ ██╗                           ║" -ForegroundColor Cyan
 Write-Host "║                           ╚═════╝ ╚═╝     ╚═╝  ╚═╝                           ║" -ForegroundColor Cyan
 Write-Host "║                                                                              ║" -ForegroundColor Cyan
-Write-Host "║                             VLAN MAESTRO v2.2.2                              ║" -ForegroundColor Yellow
+Write-Host "║                             VLAN MAESTRO v2.3.0                              ║" -ForegroundColor Yellow
 Write-Host "║                      Hyper-V Network Configuration Tool                      ║" -ForegroundColor Yellow
 Write-Host "╚══════════════════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
 Write-Host ""
@@ -107,7 +107,7 @@ Clear-Host
 
 # Warning Message
 Write-Host "╔══════════════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-Write-Host "║                             VLAN MAESTRO v2.2.2                              ║" -ForegroundColor Yellow
+Write-Host "║                             VLAN MAESTRO v2.3.0                              ║" -ForegroundColor Yellow
 Write-Host "║                      Hyper-V Network Configuration Tool                      ║" -ForegroundColor Yellow
 Write-Host "╠══════════════════════════════════════════════════════════════════════════════╣" -ForegroundColor Red
 Write-Host "║                              ⚠️  WARNING ⚠️                                    ║" -ForegroundColor Red
@@ -179,6 +179,46 @@ Write-Host "Using delay of $delay seconds between operations."
 Write-Host "═══════════════════════════════════════════════════════════════════════════════" -ForegroundColor Red
 
 
+# Function to check whether a VLAN ID falls in the valid tag range
+function Test-VlanIdInRange {
+    param([int]$VlanId)
+    return ($VlanId -ge 1 -and $VlanId -le 4094)
+}
+
+# Function to check whether a VLAN ID collides with one already in use
+function Test-VlanIdCollision {
+    param([int]$VlanId, [array]$ExistingVlanIds)
+    return ($ExistingVlanIds -contains $VlanId)
+}
+
+# Function to append a new VLAN entry to a facility's saved config in
+# vlan_sets.json. Returns $true on success, $false if the facility wasn't
+# found or the write failed (errors are written to the error stream, not
+# thrown, so callers can decide how to report them).
+function Add-VlanToFacilityConfig {
+    param(
+        [string]$JsonPath,
+        [string]$FacilityName,
+        [string]$VlanName,
+        [int]$VlanId
+    )
+    try {
+        $rawJson = Get-Content $JsonPath -Raw | ConvertFrom-Json
+        $facilityNode = $rawJson.vlanSets.$FacilityName
+        if (!$facilityNode) {
+            Write-Warning "Facility '$FacilityName' not found in $JsonPath"
+            return $false
+        }
+        $newVlanEntry = [PSCustomObject]@{ Name = $VlanName; VlanId = $VlanId }
+        $facilityNode.vlans = @($facilityNode.vlans) + $newVlanEntry
+        $rawJson | ConvertTo-Json -Depth 10 | Set-Content $JsonPath
+        return $true
+    } catch {
+        Write-Warning "Error saving to $($JsonPath): $($_.Exception.Message)"
+        return $false
+    }
+}
+
 # Function to convert CIDR notation to subnet mask
 function Convert-CidrToSubnetMask {
     param([int]$cidr)
@@ -190,7 +230,7 @@ function Convert-CidrToSubnetMask {
 # Input validation functions
 function Test-ModeChoice {
     param([string]$input)
-    return ([string]::IsNullOrWhiteSpace($input) -or $input -eq "1" -or $input -eq "2" -or $input -eq "3")
+    return ([string]::IsNullOrWhiteSpace($input) -or $input -eq "1" -or $input -eq "2" -or $input -eq "3" -or $input -eq "4")
 }
 
 # Function to validate IP address against subnet mask
@@ -408,9 +448,10 @@ if ($choiceIndex -ge 0 -and $choiceIndex -lt $vlanSetNames.Count) {
 
 # Define valid modes for maintainable mode selection
 $validModes = @{
-    "1" = @{ name = "Normal"; description = "Normal (create switch and adapters, then IP)"; ipOnly = $false; nukeAll = $false }
-    "2" = @{ name = "IP only"; description = "IP only (skip creation, only assign IPs)"; ipOnly = $true; nukeAll = $false }
-    "3" = @{ name = "Nuke all"; description = "Nuke all (remove all virtual switches except default)"; ipOnly = $false; nukeAll = $true }
+    "1" = @{ name = "Normal"; description = "Normal (create switch and adapters, then IP)"; ipOnly = $false; nukeAll = $false; addSingle = $false }
+    "2" = @{ name = "IP only"; description = "IP only (skip creation, only assign IPs)"; ipOnly = $true; nukeAll = $false; addSingle = $false }
+    "3" = @{ name = "Nuke all"; description = "Nuke all (remove all virtual switches except default)"; ipOnly = $false; nukeAll = $true; addSingle = $false }
+    "4" = @{ name = "Add single VLAN"; description = "Add a single ad-hoc VLAN (guided prompts, no facility config needed)"; ipOnly = $false; nukeAll = $false; addSingle = $true }
 }
 Write-Host "═══════════════════════════════════════"
 # Prompt for mode
@@ -421,10 +462,10 @@ foreach ($key in $validModes.Keys | Sort-Object) {
 
 # Validate mode choice input
 do {
-    $modeChoice = Read-Host 'Enter choice (1, 2, or 3, press Enter for Normal):'
+    $modeChoice = Read-Host 'Enter choice (1, 2, 3, or 4, press Enter for Normal):'
     $isValidMode = ([string]::IsNullOrWhiteSpace($modeChoice) -or $validModes.ContainsKey($modeChoice))
     if (!$isValidMode) {
-        Write-Host "Invalid choice. Please enter 1, 2, 3, or press Enter for Normal." -ForegroundColor Red
+        Write-Host "Invalid choice. Please enter 1, 2, 3, 4, or press Enter for Normal." -ForegroundColor Red
     }
 } while (!$isValidMode)
 
@@ -436,6 +477,7 @@ if ([string]::IsNullOrWhiteSpace($modeChoice)) {
 
 $ipOnly = $selectedMode.ipOnly
 $nukeAll = $selectedMode.nukeAll
+$addSingle = $selectedMode.addSingle
 Write-Host "══════════════════════════════════════════════════════════════════════════════"
 # Handle nuke all mode
 if ($nukeAll) {
@@ -471,6 +513,208 @@ if ($nukeAll) {
     }
 
     Write-Host "Nuke all operation completed."
+    exit
+}
+
+# Handle "Add a single VLAN" mode: one ad-hoc VLAN adapter on an existing
+# switch, independent of any facility's saved vlan_sets.json schema.
+if ($addSingle) {
+    Write-Host "ADD SINGLE VLAN MODE: Adding one ad-hoc VLAN adapter to an existing switch."
+    Write-Host "══════════════════════════════════════════════════════════════════════════════"
+
+    # Step 1: adapter name
+    do {
+        $adhocName = Read-Host "Enter the VLAN adapter name (e.g. 220_Temp_Record)"
+        $isValidName = ![string]::IsNullOrWhiteSpace($adhocName)
+        if (!$isValidName) {
+            Write-Host "Adapter name cannot be empty." -ForegroundColor Red
+        }
+    } while (!$isValidName)
+
+    # Step 2: VLAN ID, range-checked and warned on collision with adapters
+    # already configured on the management OS (any switch).
+    $existingVlanTags = @()
+    try {
+        $existingVlanTags = Get-VMNetworkAdapterVlan -ManagementOS -ErrorAction Stop |
+            Where-Object { $_.OperationMode -eq "Access" } |
+            ForEach-Object { $_.AccessVlanId }
+    } catch {
+        Write-Host "Warning: could not query existing VLAN tags for collision check ($($_.Exception.Message))." -ForegroundColor Yellow
+    }
+
+    do {
+        $vlanIdInput = Read-Host "Enter the VLAN tag/ID (1-4094)"
+        $isValidVlanId = $false
+        try {
+            $adhocVlanId = [int]$vlanIdInput
+            $isValidVlanId = Test-VlanIdInRange -VlanId $adhocVlanId
+        } catch {
+            $isValidVlanId = $false
+        }
+        if (!$isValidVlanId) {
+            Write-Host "Invalid VLAN ID. Please enter a number between 1 and 4094." -ForegroundColor Red
+        } elseif (Test-VlanIdCollision -VlanId $adhocVlanId -ExistingVlanIds $existingVlanTags) {
+            Write-Host "⚠ Warning: VLAN ID $adhocVlanId is already in use on an existing adapter." -ForegroundColor Yellow
+            $collisionConfirm = Read-Host "Continue anyway? (y/N)"
+            if ($collisionConfirm -notmatch '^[Yy]') {
+                $isValidVlanId = $false
+            }
+        }
+    } while (!$isValidVlanId)
+
+    # Step 3: target switch (must already exist — this mode doesn't create one)
+    $existingSwitches = Get-VMSwitch | Select-Object -ExpandProperty Name
+    if (!$existingSwitches -or $existingSwitches.Count -eq 0) {
+        Write-Host "No virtual switches found. Run Normal mode first to create one." -ForegroundColor Red
+        exit
+    }
+    Write-Host "Existing virtual switches:"
+    for ($i = 0; $i -lt $existingSwitches.Count; $i++) {
+        Write-Host "$($i+1). $($existingSwitches[$i])"
+    }
+    do {
+        $switchChoice = Read-Host "Select the target switch by number (1-$($existingSwitches.Count))"
+        $isValidSwitch = $false
+        try {
+            $num = [int]$switchChoice
+            if ($num -ge 1 -and $num -le $existingSwitches.Count) {
+                $isValidSwitch = $true
+            }
+        } catch {
+            $isValidSwitch = $false
+        }
+        if (!$isValidSwitch) {
+            Write-Host "Invalid choice. Please enter a number between 1 and $($existingSwitches.Count)." -ForegroundColor Red
+        }
+    } while (!$isValidSwitch)
+    $adhocSwitchName = $existingSwitches[$switchChoice - 1]
+
+    # Step 4: DHCP vs static (same choice offered in Normal/IP-only modes)
+    Write-Host "══════════════════════════════════════════════════════════════════════════════"
+    Write-Host "IP Configuration Method:"
+    Write-Host "1. Static IP (configure a custom IP address)"
+    Write-Host "2. DHCP (use automatic IP assignment)"
+    do {
+        $adhocIpMethod = Read-Host "Choose IP method (1 for Static, 2 for DHCP, press Enter for Static)"
+        $isValidAdhocMethod = ([string]::IsNullOrWhiteSpace($adhocIpMethod) -or $adhocIpMethod -eq "1" -or $adhocIpMethod -eq "2")
+        if (!$isValidAdhocMethod) {
+            Write-Host "Invalid choice. Please enter 1 for Static, 2 for DHCP, or press Enter for Static." -ForegroundColor Red
+        }
+    } while (!$isValidAdhocMethod)
+    $adhocUseDHCP = ($adhocIpMethod -eq "2")
+
+    $adhocIp = $null
+    $adhocSubnet = $null
+    if (!$adhocUseDHCP) {
+        # Step 5: IP address + subnet, validated with the same subnet-math
+        # helper used everywhere else in the script. Defaults the subnet to
+        # whichever facility was selected above, since that's the closest
+        # thing to ambient context for an ad-hoc VLAN.
+        do {
+            $adhocIp = Read-Host "Enter the full IP address for this VLAN (e.g. 192.168.220.10)"
+            $adhocSubnetInput = Read-Host "Enter the subnet mask (press Enter for default: $subnetMask)"
+            $adhocSubnet = if ([string]::IsNullOrWhiteSpace($adhocSubnetInput)) { $subnetMask } else { $adhocSubnetInput }
+
+            $adhocValidation = Test-IPAgainstSubnet -ipAddress $adhocIp -subnetMask $adhocSubnet
+            $isValidAdhocIp = $adhocValidation.IsValid
+            if (!$isValidAdhocIp) {
+                Write-Host "Invalid IP for subnet $adhocSubnet (network: $($adhocValidation.NetworkAddress), broadcast: $($adhocValidation.BroadcastAddress)). Please re-enter." -ForegroundColor Red
+            }
+        } while (!$isValidAdhocIp)
+    }
+
+    # Step 6: confirmation summary before touching Hyper-V
+    Write-Host "══════════════════════════════════════════════════════════════════════════════"
+    Write-Host "Confirm ad-hoc VLAN configuration:" -ForegroundColor Cyan
+    Write-Host "  Adapter name: $adhocName"
+    Write-Host "  VLAN ID:      $adhocVlanId"
+    Write-Host "  Switch:       $adhocSwitchName"
+    if ($adhocUseDHCP) {
+        Write-Host "  IP method:    DHCP"
+    } else {
+        Write-Host "  IP method:    Static ($adhocIp / $adhocSubnet)"
+    }
+    $applyConfirm = Read-Host "Apply this configuration? (y/N)"
+    if ($applyConfirm -notmatch '^[Yy]') {
+        Write-Host "Operation cancelled."
+        exit
+    }
+
+    Write-Host "Adding virtual adapter '$adhocName' to switch '$adhocSwitchName'..."
+    Add-VMNetworkAdapter -ManagementOS -Name $adhocName -SwitchName $adhocSwitchName
+    Start-Countdown -seconds $delay
+    Write-Host "Setting VLAN ID $adhocVlanId for '$adhocName'..."
+    Set-VMNetworkAdapterVlan -VMNetworkAdapterName $adhocName -VlanId $adhocVlanId -Access -ManagementOS
+    Start-Countdown -seconds $delay
+
+    # Wait for the adapter to be available, same retry pattern used for the
+    # facility-driven modes below.
+    $maxRetries = 10
+    $retryCount = 0
+    $adapter = $null
+    while ($retryCount -lt $maxRetries -and $adapter -eq $null) {
+        $adapter = Get-NetAdapter | Where-Object { $_.Name -eq "vEthernet ($adhocName)" }
+        if ($adapter -eq $null) {
+            Write-Host "Waiting for adapter 'vEthernet ($adhocName)' to be available... ($($retryCount + 1)/$maxRetries)"
+            Start-Sleep -Seconds 3
+            $retryCount++
+        }
+    }
+
+    if ($adapter) {
+        if ($adhocUseDHCP) {
+            try {
+                Write-Host "Enabling DHCP for '$adhocName'..."
+                Set-NetIPInterface -InterfaceIndex $adapter.InterfaceIndex -Dhcp Enabled
+                $existingIPs = Get-NetIPAddress -InterfaceIndex $adapter.InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue
+                if ($existingIPs) {
+                    foreach ($existingIP in $existingIPs) {
+                        Remove-NetIPAddress -IPAddress $existingIP.IPAddress -Confirm:$false
+                    }
+                }
+                Write-Host "✓ Successfully enabled DHCP for '$adhocName'"
+            } catch {
+                Write-Host "✗ Error enabling DHCP for '$adhocName': $($_.Exception.Message)"
+            }
+        } else {
+            try {
+                Write-Host "Configuring IP $adhocIp for '$adhocName' using netsh..."
+                $netshCommand = "netsh interface ip set address ""$($adapter.Name)"" static $adhocIp $adhocSubnet"
+                Write-Host "Running: $netshCommand"
+                $result = cmd /c $netshCommand 2>&1
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Host "✓ Successfully set IP $adhocIp for '$adhocName'"
+                } else {
+                    Write-Host "✗ Netsh failed: $result"
+                    throw "Netsh IP configuration failed"
+                }
+            } catch {
+                Write-Host "✗ Error setting IP for '$adhocName': $($_.Exception.Message)"
+            }
+        }
+    } else {
+        Write-Host "✗ Error: Adapter '$adhocName' not found after $maxRetries attempts"
+    }
+
+    # Step 7 (optional): persist this VLAN into the currently selected
+    # facility's saved config in vlan_sets.json, bridging toward the
+    # interactive schema-editor ticket without requiring it. Default: no.
+    Write-Host "══════════════════════════════════════════════════════════════════════════════"
+    if (Test-Path $vlanConfigPath) {
+        $saveChoice = Read-Host "Add this VLAN to the '$selectedVlanSet' facility's saved config in vlan_sets.json too? (y/N)"
+        if ($saveChoice -match '^[Yy]') {
+            $saved = Add-VlanToFacilityConfig -JsonPath $vlanConfigPath -FacilityName $selectedVlanSet -VlanName $adhocName -VlanId $adhocVlanId
+            if ($saved) {
+                Write-Host "✓ Saved '$adhocName' (VLAN $adhocVlanId) to the '$selectedVlanSet' facility in $vlanConfigPath" -ForegroundColor Green
+            } else {
+                Write-Host "✗ Could not save '$adhocName' to the '$selectedVlanSet' facility in $vlanConfigPath — see error above." -ForegroundColor Red
+            }
+        }
+    } else {
+        Write-Host "No vlan_sets.json file found at $vlanConfigPath — skipping optional save-to-config step."
+    }
+
+    Write-Host "Add single VLAN operation completed."
     exit
 }
 Write-Host "══════════════════════════════════════════════════════════════════════════════"
