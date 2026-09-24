@@ -148,7 +148,7 @@ Describe 'Add single VLAN mode helper functions (issue #11)' {
 
         It 'returns false and leaves the file untouched when the facility does not exist' {
             $before = Get-Content $script:tempJsonPath -Raw
-            $result = Add-VlanToFacilityConfig -JsonPath $script:tempJsonPath -FacilityName 'NoSuchFacility' -VlanName 'x' -VlanId 999 -ErrorAction SilentlyContinue
+            $result = Add-VlanToFacilityConfig -JsonPath $script:tempJsonPath -FacilityName 'NoSuchFacility' -VlanName 'x' -VlanId 999 3>$null
             $result | Should -BeFalse
             (Get-Content $script:tempJsonPath -Raw) | Should -Be $before
         }

@@ -206,7 +206,7 @@ function Add-VlanToFacilityConfig {
         $rawJson = Get-Content $JsonPath -Raw | ConvertFrom-Json
         $facilityNode = $rawJson.vlanSets.$FacilityName
         if (!$facilityNode) {
-            Write-Error "Facility '$FacilityName' not found in $JsonPath"
+            Write-Warning "Facility '$FacilityName' not found in $JsonPath"
             return $false
         }
         $newVlanEntry = [PSCustomObject]@{ Name = $VlanName; VlanId = $VlanId }
@@ -214,7 +214,7 @@ function Add-VlanToFacilityConfig {
         $rawJson | ConvertTo-Json -Depth 10 | Set-Content $JsonPath
         return $true
     } catch {
-        Write-Error "Error saving to $($JsonPath): $($_.Exception.Message)"
+        Write-Warning "Error saving to $($JsonPath): $($_.Exception.Message)"
         return $false
     }
 }
