@@ -26,7 +26,7 @@
 #
 # ================================================================================
 # PROJECT: DPX_VLAN_MAESTRO
-# VERSION: 2.5.1
+# VERSION: 2.5.2
 # ================================================================================
 #
 # [File-specific information]
@@ -96,7 +96,7 @@ Write-Host "║                           ██║  ██║██╔═══
 Write-Host "║                           ██████╔╝██║     ██╔╝ ██╗                           ║" -ForegroundColor Cyan
 Write-Host "║                           ╚═════╝ ╚═╝     ╚═╝  ╚═╝                           ║" -ForegroundColor Cyan
 Write-Host "║                                                                              ║" -ForegroundColor Cyan
-Write-Host "║                             VLAN MAESTRO v2.5.1                              ║" -ForegroundColor Yellow
+Write-Host "║                             VLAN MAESTRO v2.5.2                              ║" -ForegroundColor Yellow
 Write-Host "║                      Hyper-V Network Configuration Tool                      ║" -ForegroundColor Yellow
 Write-Host "╚══════════════════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
 Write-Host ""
@@ -107,7 +107,7 @@ Clear-Host
 
 # Warning Message
 Write-Host "╔══════════════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-Write-Host "║                             VLAN MAESTRO v2.5.1                              ║" -ForegroundColor Yellow
+Write-Host "║                             VLAN MAESTRO v2.5.2                              ║" -ForegroundColor Yellow
 Write-Host "║                      Hyper-V Network Configuration Tool                      ║" -ForegroundColor Yellow
 Write-Host "╠══════════════════════════════════════════════════════════════════════════════╣" -ForegroundColor Red
 Write-Host "║                              ⚠️  WARNING ⚠️                                    ║" -ForegroundColor Red
@@ -1362,6 +1362,21 @@ if (!$ipOnly) {
     foreach ($switch in $switchesOnNic) {
         Write-Host "Found existing switch '$($switch.Name)' bound to '$selectedNic'. Cleaning up..."
 
+        # Warn if this switch has adapters attached to an actual VM (not just
+        # the management OS) -- those are the likely reason Remove-VMSwitch
+        # fails below, since Hyper-V won't remove a switch with a live
+        # connected VM on it. ManagementOS adapters are the only ones this
+        # script removes itself; VM-attached ones are left for the user to
+        # investigate rather than silently touching another VM's networking.
+        $vmAttachedAdapters = Get-VMNetworkAdapter -All -ErrorAction SilentlyContinue | Where-Object { $_.SwitchName -eq $switch.Name -and -not $_.IsManagementOs }
+        if ($vmAttachedAdapters) {
+            Write-Host "⚠ Warning: switch '$($switch.Name)' has VM-attached adapter(s) still connected:" -ForegroundColor Yellow
+            foreach ($vmAdapter in $vmAttachedAdapters) {
+                Write-Host "    $($vmAdapter.VMName) / $($vmAdapter.Name)" -ForegroundColor Yellow
+            }
+            Write-Host "  Removal below will likely fail unless that VM's networking is detached first." -ForegroundColor Yellow
+        }
+
         # Remove all VLAN adapters associated with this switch
         Write-Host "Removing all adapters bound to switch '$($switch.Name)'..."
         Get-VMNetworkAdapter -ManagementOS | Where-Object { $_.SwitchName -eq $switch.Name } | Remove-VMNetworkAdapter
@@ -1369,8 +1384,19 @@ if (!$ipOnly) {
 
         # Remove the switch itself
         Write-Host "Removing virtual switch '$($switch.Name)'..."
-        Remove-VMSwitch -Name $switch.Name -Force
+        Remove-VMSwitch -Name $switch.Name -Force -ErrorAction Continue
         Start-Countdown -seconds $delay
+
+        # Verify removal actually succeeded before continuing -- if it
+        # didn't, the NIC is still bound to this switch and creating a new
+        # one on it will fail too, cascading into a wall of unrelated
+        # errors for every VLAN. Stop cleanly instead.
+        if (Get-VMSwitch -Name $switch.Name -ErrorAction SilentlyContinue) {
+            Write-Host "✗ Could not remove existing switch '$($switch.Name)' -- it still exists." -ForegroundColor Red
+            Write-Host "  '$selectedNic' is still bound to it, so creating a new switch on this NIC would fail too." -ForegroundColor Red
+            Write-Host "  Check for a VM still using this switch (see warning above, if shown) and detach it, then try again." -ForegroundColor Red
+            exit
+        }
     }
 
     # Create virtual switch
@@ -1381,8 +1407,18 @@ if (!$ipOnly) {
     Start-Sleep -Seconds 2
     Enable-NetAdapter -Name $selectedNic
     Start-Countdown -seconds $delay
-    New-VMSwitch -Name $switchName -NetAdapterName $selectedNic -AllowManagementOS $true
+    New-VMSwitch -Name $switchName -NetAdapterName $selectedNic -AllowManagementOS $true -ErrorAction Continue
     Start-Countdown -seconds $delay
+
+    # Verify the switch actually got created before attempting to add any
+    # VLAN adapters to it -- without this, a failed New-VMSwitch cascades
+    # into one Add-VMNetworkAdapter/Set-VMNetworkAdapterVlan failure per
+    # facility VLAN instead of stopping cleanly with one clear error.
+    if (!(Get-VMSwitch -Name $switchName -ErrorAction SilentlyContinue)) {
+        Write-Host "✗ Failed to create virtual switch '$switchName' on '$selectedNic'." -ForegroundColor Red
+        Write-Host "  Check above for the New-VMSwitch error -- a common cause is the NIC still being bound to a switch that failed to remove." -ForegroundColor Red
+        exit
+    }
 
     # Add virtual network adapters with delays
     foreach ($vlan in $vlans) {

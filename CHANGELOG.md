@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.5.2
+
+### Fixed
+- **Real-world bug (issue #25)**, reported by a beta tester: Normal mode's "deep cleanup" (removing an existing switch bound to the chosen NIC before creating a new one) could silently fail, then cascade into one `Add-VMNetworkAdapter`/`Set-VMNetworkAdapterVlan` error per facility VLAN instead of stopping cleanly. Root cause: cleanup only removes ManagementOS-bound adapters on the old switch — if a real VM still has an adapter attached to it, `Remove-VMSwitch` fails (Hyper-V won't remove a switch with a live VM connection), the NIC stays bound to the old switch, and `New-VMSwitch` then fails too
+- Now: warns up front if a switch-to-be-removed has VM-attached adapters still on it (naming the VM), and — critically — verifies both `Remove-VMSwitch` and `New-VMSwitch` actually succeeded before continuing, exiting with one clear error instead of a wall of cascading failures
+- Updated version to 2.5.2 and ASCII art title accordingly
+
 ## v2.5.1
 
 ### Added
