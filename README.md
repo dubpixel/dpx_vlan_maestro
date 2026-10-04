@@ -115,7 +115,7 @@ The script supports multiple facility types (4Wall, Dapper, Desert, HIVE, and cu
 ### ⚙️ **Multiple Operation Modes**
 - **Normal Mode**: Complete setup (switch + adapters + IPs)
 - **IP Only Mode**: Update IP addresses on existing adapters
-- **Nuke All Mode**: Complete cleanup of all virtual switches
+- **Nuke All Mode**: Complete cleanup of all virtual switches — lists candidates with an opt-out keep-list, removes VM-attached adapters too, regardless of switch name/origin
 - **Add Single VLAN Mode**: Guided prompts to add one ad-hoc VLAN adapter to an existing switch, no facility config needed
 - **Manage Facility Schemas Mode**: Add a new facility or edit an existing one's VLANs/IP config directly in `vlan_sets.json`, no hand-editing JSON
 - **Update Existing Mode**: Reconcile an already-configured switch against the facility's current VLAN list — adds only what's missing, leaves everything else untouched
@@ -395,9 +395,11 @@ At completion, the script displays:
      - Custom: Any combination defined in JSON
 
 5. **Nuke All Mode**
-   - Removes all user-created virtual switches and their VLAN adapters
-   - Preserves default/built-in switches (like "Default Switch")
-   - Requires explicit confirmation by typing "YES"
+   - Lists every eligible (non-default) virtual switch up front, flagging any that still have a VM-attached network adapter connected
+   - Prompts for which switches to **keep** (by number, comma-separated) — anything not kept is removed, including switches this tool didn't create
+   - Removes both management-OS and VM-attached adapters, then the switch itself — genuinely destructive regardless of switch name/origin, since "nuke all" means nuke all
+   - Preserves default/built-in switches (like "Default Switch") automatically — those are never listed as candidates
+   - Requires explicit confirmation by typing "YES" before anything is touched
 
 6. **Add Single VLAN Mode**
    - First asks where the VLAN should go: **System only** (Hyper-V, not saved), **JSON only** (saved to the current facility's config, Hyper-V untouched), or **Both**
@@ -554,6 +556,7 @@ Available VLAN sets:
 2. Dapper (10 VLANs)
 3. Desert (13 VLANs)
 4. HIVE (17 VLANs)
+5. ExampleFacility (3 VLANs)
 Enter choice (1-5): 1
 
 Select mode:
@@ -561,16 +564,34 @@ Select mode:
 2. IP only (skip creation, only assign IPs)
 3. Nuke all (remove all virtual switches except default)
 4. Add single VLAN (guided ad-hoc VLAN add on an existing switch)
-Enter choice (1, 2, 3, or 4, press Enter for Normal): 3
+5. Manage facility schemas (add/edit facilities in vlan_sets.json)
+6. Update existing (add only missing VLANs to an existing switch)
+Enter choice (1-6, press Enter for Normal): 3
 
-NUKE ALL MODE: Removing all virtual switches except default switches...
-WARNING: This will remove ALL user-created virtual switches and their VLAN adapters!
+NUKE ALL MODE: Removing virtual switches except default switches...
+Found 2 virtual switch(es) eligible for removal:
+1. vLanSwitch
+2. Trunk ⚠ has VM-attached adapter(s): dpx_showsite_ops
+
+Nuke all means every switch above gets removed by default -- including
+any VM-attached adapters still plugged into them, regardless of the
+switch's name or what created it.
+Enter switch number(s) to KEEP, comma-separated (press Enter to nuke all of them):
+
+Will remove:
+  - vLanSwitch
+  - Trunk
+
 Are you sure you want to continue? Type 'YES' to confirm: YES
 
 Removing switch 'vLanSwitch' and all its adapters...
-Removing adapter '10_Server_A'...
-# ... continues for all adapters and switches ...
-Skipping default/built-in switch 'Default Switch'
+Removing all adapters bound to switch 'vLanSwitch'...
+Removing switch 'vLanSwitch'...
+✓ Removed 'vLanSwitch'.
+Removing switch 'Trunk' and all its adapters...
+Removing all adapters bound to switch 'Trunk'...
+Removing switch 'Trunk'...
+✓ Removed 'Trunk'.
 
 Nuke all operation completed.
 ```
