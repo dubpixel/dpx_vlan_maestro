@@ -355,7 +355,7 @@ Describe 'Resolve-SwitchesToRemove (Nuke-all keep-list parsing, issue follow-up 
     }
 
     It 'ignores out-of-range and non-numeric tokens rather than throwing' {
-        $warnings = @()
+        $script:warnings = @()
         $result = Resolve-SwitchesToRemove -CandidateSwitches @('A', 'B') -KeepInput '1, 99, nope' -ReportWarning { param($msg) $script:warnings += $msg }
         $result | Should -Be @('B')
         $warnings.Count | Should -Be 2
