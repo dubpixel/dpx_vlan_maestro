@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.6.0
+
+> ⚠️ **Untested on real hardware.** This release makes Nuke-all genuinely more destructive (forces removal of VM-attached adapters, not just management-OS ones) — the keep-list parsing logic is unit-tested, but the actual forced-removal behavior against a live VM-attached switch has not been verified on a real Hyper-V host.
+
+### Changed
+- **Nuke-all mode is now genuinely "nuke all"** (follow-up to #25): previously it silently couldn't remove a switch that had a live VM's network adapter still attached (Hyper-V refuses to remove a switch with an active VM connection), which was the real root cause behind the cascading-errors bug fixed in v2.5.2. Nuke-all now forcibly removes VM-attached adapters too, not just management-OS ones, regardless of the switch's name or what created it (another tool, a manual setup, etc.)
+- To make that safe, Nuke-all now **lists every eligible switch up front** (flagging any with VM-attached adapters by VM name) and lets you type numbers to **keep** specific ones before the existing typed-`YES` confirmation — everything not explicitly kept gets removed
+- Each switch's removal now reports success/failure individually instead of assuming it worked
+- Added `Resolve-SwitchesToRemove` as a standalone, testable function (keep-list parsing: comma-separated indexes, out-of-range/invalid token handling) with direct Pester unit tests
+- Normal mode's deep-cleanup (the actual code path from the original #25 bug report) is deliberately **unchanged** — it still fails cleanly with a clear message rather than force-removing VM adapters, since that mode has no equivalent "I understand this is destructive" confirmation step the way Nuke-all does
+- Updated version to 2.6.0 and ASCII art title accordingly
+
 ## v2.5.2
 
 ### Fixed

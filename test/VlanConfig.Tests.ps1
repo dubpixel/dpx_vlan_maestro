@@ -325,6 +325,48 @@ Describe 'Compare-FacilityVlansToSwitch (issue #10 diff logic)' {
     }
 }
 
+Describe 'Resolve-SwitchesToRemove (Nuke-all keep-list parsing, issue follow-up to #25)' {
+    BeforeAll {
+        $scriptPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'src/vlan_maestro.ps1'
+        $tokens = $null
+        $parseErrors = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile($scriptPath, [ref]$tokens, [ref]$parseErrors)
+        $functionAsts = $ast.FindAll({
+            param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst]
+        }, $true)
+        foreach ($fn in $functionAsts) {
+            . ([scriptblock]::Create($fn.Extent.Text))
+        }
+    }
+
+    It 'removes everything when the keep-list is empty' {
+        $result = Resolve-SwitchesToRemove -CandidateSwitches @('A', 'B', 'C') -KeepInput ''
+        $result | Should -Be @('A', 'B', 'C')
+    }
+
+    It 'keeps only the switch(es) named by number' {
+        $result = Resolve-SwitchesToRemove -CandidateSwitches @('A', 'B', 'C') -KeepInput '2'
+        $result | Should -Be @('A', 'C')
+    }
+
+    It 'handles multiple comma-separated keep indexes, with whitespace' {
+        $result = Resolve-SwitchesToRemove -CandidateSwitches @('A', 'B', 'C') -KeepInput '1, 3'
+        $result | Should -Be @('B')
+    }
+
+    It 'ignores out-of-range and non-numeric tokens rather than throwing' {
+        $script:warnings = @()
+        $result = Resolve-SwitchesToRemove -CandidateSwitches @('A', 'B') -KeepInput '1, 99, nope' -ReportWarning { param($msg) $script:warnings += $msg }
+        $result | Should -Be @('B')
+        $warnings.Count | Should -Be 2
+    }
+
+    It 'removes nothing when every switch is kept' {
+        $result = Resolve-SwitchesToRemove -CandidateSwitches @('A', 'B') -KeepInput '1,2'
+        @($result).Count | Should -Be 0
+    }
+}
+
 Describe 'Mode table sanity (regression: catches copy-paste flag mistakes across modes)' {
     BeforeAll {
         $scriptPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'src/vlan_maestro.ps1'

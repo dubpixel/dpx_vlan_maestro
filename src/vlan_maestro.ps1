@@ -26,7 +26,7 @@
 #
 # ================================================================================
 # PROJECT: DPX_VLAN_MAESTRO
-# VERSION: 2.5.2
+# VERSION: 2.6.0
 # ================================================================================
 #
 # [File-specific information]
@@ -96,7 +96,7 @@ Write-Host "║                           ██║  ██║██╔═══
 Write-Host "║                           ██████╔╝██║     ██╔╝ ██╗                           ║" -ForegroundColor Cyan
 Write-Host "║                           ╚═════╝ ╚═╝     ╚═╝  ╚═╝                           ║" -ForegroundColor Cyan
 Write-Host "║                                                                              ║" -ForegroundColor Cyan
-Write-Host "║                             VLAN MAESTRO v2.5.2                              ║" -ForegroundColor Yellow
+Write-Host "║                             VLAN MAESTRO v2.6.0                              ║" -ForegroundColor Yellow
 Write-Host "║                      Hyper-V Network Configuration Tool                      ║" -ForegroundColor Yellow
 Write-Host "╚══════════════════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
 Write-Host ""
@@ -107,7 +107,7 @@ Clear-Host
 
 # Warning Message
 Write-Host "╔══════════════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-Write-Host "║                             VLAN MAESTRO v2.5.2                              ║" -ForegroundColor Yellow
+Write-Host "║                             VLAN MAESTRO v2.6.0                              ║" -ForegroundColor Yellow
 Write-Host "║                      Hyper-V Network Configuration Tool                      ║" -ForegroundColor Yellow
 Write-Host "╠══════════════════════════════════════════════════════════════════════════════╣" -ForegroundColor Red
 Write-Host "║                              ⚠️  WARNING ⚠️                                    ║" -ForegroundColor Red
@@ -396,6 +396,40 @@ function Compare-FacilityVlansToSwitch {
     }
 }
 
+# Function to resolve which switches Nuke-all should actually remove, given
+# the candidate list and the user's comma-separated "keep" input (1-based
+# indexes into CandidateSwitches). Empty/whitespace input means keep none
+# -- remove everything. Out-of-range or non-numeric tokens are ignored
+# (ReportWarning is called for each one, as a hook for Write-Host from the
+# caller -- kept out of this function so it stays pure/testable).
+function Resolve-SwitchesToRemove {
+    param(
+        [array]$CandidateSwitches,
+        [string]$KeepInput,
+        [scriptblock]$ReportWarning = {}
+    )
+    if ([string]::IsNullOrWhiteSpace($KeepInput)) {
+        return @($CandidateSwitches)
+    }
+
+    $keepIndexes = @()
+    foreach ($token in ($KeepInput -split ',')) {
+        $trimmed = $token.Trim()
+        try {
+            $num = [int]$trimmed
+            if ($num -ge 1 -and $num -le $CandidateSwitches.Count) {
+                $keepIndexes += ($num - 1)
+            } else {
+                & $ReportWarning "Ignoring out-of-range entry '$trimmed'."
+            }
+        } catch {
+            & $ReportWarning "Ignoring invalid entry '$trimmed'."
+        }
+    }
+    $keepNames = @($keepIndexes | Sort-Object -Unique | ForEach-Object { $CandidateSwitches[$_] })
+    return @($CandidateSwitches | Where-Object { $keepNames -notcontains $_ })
+}
+
 # Function to convert CIDR notation to subnet mask
 function Convert-CidrToSubnetMask {
     param([int]$cidr)
@@ -662,8 +696,48 @@ $updateExisting = $selectedMode.updateExisting
 Write-Host "══════════════════════════════════════════════════════════════════════════════"
 # Handle nuke all mode
 if ($nukeAll) {
-    Write-Host "NUKE ALL MODE: Removing all virtual switches except default switches..."
-    Write-Host "WARNING: This will remove ALL user-created virtual switches and their VLAN adapters!"
+    Write-Host "NUKE ALL MODE: Removing virtual switches except default switches..."
+    Write-Host "══════════════════════════════════════════════════════════════════════════════"
+
+    # Get unique virtual switch names (excluding default/built-in switches).
+    # No name filtering beyond that -- a switch created by a different
+    # tool/script, or by hand, is just as eligible as one this script made.
+    $allSwitches = Get-VMSwitch
+    $candidateSwitches = @($allSwitches | Where-Object {
+        $_.Name -notlike "*Default*" -and
+        $_.Name -notlike "vEthernet*" -and
+        $_.SwitchType -ne "Internal"
+    } | Select-Object -ExpandProperty Name -Unique)
+
+    if ($candidateSwitches.Count -eq 0) {
+        Write-Host "No non-default virtual switches found. Nothing to do." -ForegroundColor Green
+        exit
+    }
+
+    Write-Host "Found $($candidateSwitches.Count) virtual switch(es) eligible for removal:"
+    for ($i = 0; $i -lt $candidateSwitches.Count; $i++) {
+        $switchName = $candidateSwitches[$i]
+        $vmAdapters = Get-VMNetworkAdapter -All -ErrorAction SilentlyContinue | Where-Object { $_.SwitchName -eq $switchName -and -not $_.IsManagementOs }
+        $vmTag = if ($vmAdapters) { " ⚠ has VM-attached adapter(s): $(($vmAdapters | ForEach-Object { $_.VMName }) -join ', ')" } else { "" }
+        Write-Host "$($i+1). $switchName$vmTag"
+    }
+
+    Write-Host ""
+    Write-Host "Nuke all means every switch above gets removed by default -- including" -ForegroundColor Yellow
+    Write-Host "any VM-attached adapters still plugged into them, regardless of the" -ForegroundColor Yellow
+    Write-Host "switch's name or what created it." -ForegroundColor Yellow
+    $keepInput = Read-Host "Enter switch number(s) to KEEP, comma-separated (press Enter to nuke all of them)"
+    $switchesToRemove = Resolve-SwitchesToRemove -CandidateSwitches $candidateSwitches -KeepInput $keepInput -ReportWarning { param($msg) Write-Host $msg -ForegroundColor Yellow }
+
+    if ($switchesToRemove.Count -eq 0) {
+        Write-Host "All switches kept -- nothing selected for removal." -ForegroundColor Green
+        exit
+    }
+
+    Write-Host ""
+    Write-Host "Will remove:" -ForegroundColor Red
+    foreach ($s in $switchesToRemove) { Write-Host "  - $s" -ForegroundColor Red }
+    Write-Host ""
 
     $confirm = Read-Host "Are you sure you want to continue? Type 'YES' to confirm"
     if ($confirm -ne "YES") {
@@ -671,26 +745,28 @@ if ($nukeAll) {
         exit
     }
 
-    # Get unique virtual switch names (excluding default/built-in switches)
-    $allSwitches = Get-VMSwitch
-    $switchesToRemove = $allSwitches | Where-Object { 
-        $_.Name -notlike "*Default*" -and 
-        $_.Name -notlike "vEthernet*" -and 
-        $_.SwitchType -ne "Internal" 
-    } | Select-Object -ExpandProperty Name -Unique
-    
     foreach ($switchName in $switchesToRemove) {
         Write-Host "Removing switch '$switchName' and all its adapters..."
 
-        # Remove all VLAN adapters associated with this switch
+        # Remove ALL adapters bound to this switch -- both ManagementOS and
+        # any VM-attached ones. Nuke-all is explicitly meant to be fully
+        # destructive regardless of switch name/origin -- the typed YES
+        # confirmation above (plus the keep-list prompt) is the safety
+        # gate, not partial adapter removal.
         Write-Host "Removing all adapters bound to switch '$switchName'..."
-        Get-VMNetworkAdapter -ManagementOS | Where-Object { $_.SwitchName -eq $switchName } | Remove-VMNetworkAdapter
+        Get-VMNetworkAdapter -All | Where-Object { $_.SwitchName -eq $switchName } | Remove-VMNetworkAdapter -Force -ErrorAction Continue
         Start-Countdown -seconds $delay
 
         # Remove the switch
         Write-Host "Removing switch '$switchName'..."
-        Remove-VMSwitch -Name $switchName -Force
+        Remove-VMSwitch -Name $switchName -Force -ErrorAction Continue
         Start-Countdown -seconds $delay
+
+        if (Get-VMSwitch -Name $switchName -ErrorAction SilentlyContinue) {
+            Write-Host "✗ Still could not remove '$switchName' -- see the error above (e.g. a Generation 1 VM's adapter can't be hot-removed while running)." -ForegroundColor Red
+        } else {
+            Write-Host "✓ Removed '$switchName'." -ForegroundColor Green
+        }
     }
 
     Write-Host "Nuke all operation completed."
