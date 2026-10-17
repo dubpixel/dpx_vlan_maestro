@@ -367,16 +367,26 @@ At completion, the script displays:
 
 ### Script Workflow
 
-1. **Select VLAN Set**
-   - Script automatically loads all available VLAN sets from `vlan_sets.json`
-   - Choose from any configured facility (4Wall, Dapper, Desert, HIVE, RGO, or custom sets)
-   - Each set contains predefined VLAN configurations
+The script asks **which mode first, then which facility/VLAN set** —
+only the modes that actually need a facility (Normal, IP-only, Add single
+VLAN, Update existing) prompt for one; Nuke-all and Manage facility schemas
+skip straight past that step. After any mode finishes, you're returned to
+the mode menu instead of the script ending — type `Q` at the mode prompt
+whenever you're done to exit.
 
-2. **Select Mode**
+1. **Select Mode**
    - **Normal Mode**: Creates virtual switch, adapters, and assigns IPs
    - **IP Only Mode**: Skips creation, only assigns IP addresses to existing adapters
    - **Nuke All Mode**: Removes all virtual switches except default/built-in ones (with confirmation)
    - **Add Single VLAN Mode**: Guided prompts to add one ad-hoc VLAN adapter to an existing switch
+   - **Manage Facility Schemas Mode**: Add/edit a facility's VLANs or IP config
+   - **Update Existing Mode**: Reconcile a switch against a facility's VLAN list
+   - **Q — Quit**: the only way to end the script now; every mode otherwise returns here when it's done
+
+2. **Select VLAN Set** (only for modes that need one — Normal, IP-only, Add single VLAN, Update existing)
+   - Script automatically loads all available VLAN sets from `vlan_sets.json`, reloaded fresh each time through the menu so changes made via Manage Facility Schemas show up immediately
+   - Choose from any configured facility (4Wall, Dapper, Desert, HIVE, RGO, or custom sets)
+   - Each set contains predefined VLAN configurations
 
 3. **Normal Mode Steps**
    - Select physical network adapter from list
@@ -439,6 +449,16 @@ PS C:\DPX_VLAN_MAESTRO\src> .\vlan_maestro.ps1
 
 # ASCII art title and warning messages display...
 
+Select mode:
+1. Normal (create switch and adapters, then IP)
+2. IP only (skip creation, only assign IPs)
+3. Nuke all (remove all virtual switches except default)
+4. Add single VLAN (guided ad-hoc VLAN add on an existing switch)
+5. Manage facility schemas (add/edit facilities in vlan_sets.json)
+6. Update existing (add only missing VLANs to an existing switch)
+Q. Quit
+Enter choice (1-6, Q to quit, press Enter for Normal): 1
+
 Available VLAN sets:
 1. 4Wall (7 VLANs)
 2. Dapper (10 VLANs)
@@ -447,13 +467,6 @@ Available VLAN sets:
 5. ExampleFacility (3 VLANs)
 Enter choice (1-5): 2
 Using Dapper VLAN set (10 VLANs).
-
-Select mode:
-1. Normal (create switch and adapters, then IP)
-2. IP only (skip creation, only assign IPs)
-3. Nuke all (remove all virtual switches except default)
-4. Add single VLAN (guided ad-hoc VLAN add on an existing switch)
-Enter choice (1, 2, 3, or 4, press Enter for Normal): 1
 
 Listing available network adapters:
 1. Ethernet - Intel(R) I350 Gigabit Network Connection
@@ -490,7 +503,7 @@ Using DHCP for automatic IP assignment instead of static IPs:
 ```powershell
 PS C:\DPX_VLAN_MAESTRO\src> .\vlan_maestro.ps1
 
-# ... VLAN set and mode selection ...
+# ... mode and VLAN set selection ...
 
 IP Configuration Method:
 1. Static IP (configure custom IP addresses)
@@ -517,6 +530,16 @@ Changing IP addresses on existing VLAN adapters without recreating them:
 ```powershell
 PS C:\DPX_VLAN_MAESTRO\src> .\vlan_maestro.ps1
 
+Select mode:
+1. Normal (create switch and adapters, then IP)
+2. IP only (skip creation, only assign IPs)
+3. Nuke all (remove all virtual switches except default)
+4. Add single VLAN (guided ad-hoc VLAN add on an existing switch)
+5. Manage facility schemas (add/edit facilities in vlan_sets.json)
+6. Update existing (add only missing VLANs to an existing switch)
+Q. Quit
+Enter choice (1-6, Q to quit, press Enter for Normal): 2
+
 Available VLAN sets:
 1. 4Wall (7 VLANs)
 2. Dapper (10 VLANs)
@@ -524,13 +547,6 @@ Available VLAN sets:
 4. HIVE (17 VLANs)
 Enter choice (1-5): 3
 Using Desert VLAN set (13 VLANs).
-
-Select mode:
-1. Normal (create switch and adapters, then IP)
-2. IP only (skip creation, only assign IPs)
-3. Nuke all (remove all virtual switches except default)
-4. Add single VLAN (guided ad-hoc VLAN add on an existing switch)
-Enter choice (1, 2, 3, or 4, press Enter for Normal): 2
 
 Enter the fourth octet for IP addresses: 50
 
@@ -551,14 +567,6 @@ Removing all virtual switches before decommissioning or rebuilding:
 ```powershell
 PS C:\DPX_VLAN_MAESTRO\src> .\vlan_maestro.ps1
 
-Available VLAN sets:
-1. 4Wall (7 VLANs)
-2. Dapper (10 VLANs)
-3. Desert (13 VLANs)
-4. HIVE (17 VLANs)
-5. ExampleFacility (3 VLANs)
-Enter choice (1-5): 1
-
 Select mode:
 1. Normal (create switch and adapters, then IP)
 2. IP only (skip creation, only assign IPs)
@@ -566,7 +574,8 @@ Select mode:
 4. Add single VLAN (guided ad-hoc VLAN add on an existing switch)
 5. Manage facility schemas (add/edit facilities in vlan_sets.json)
 6. Update existing (add only missing VLANs to an existing switch)
-Enter choice (1-6, press Enter for Normal): 3
+Q. Quit
+Enter choice (1-6, Q to quit, press Enter for Normal): 3
 
 NUKE ALL MODE: Removing virtual switches except default switches...
 Found 2 virtual switch(es) eligible for removal:
@@ -594,9 +603,16 @@ Removing switch 'Trunk'...
 ✓ Removed 'Trunk'.
 
 Nuke all operation completed.
+
+Select mode:
+...
+Q. Quit
+Enter choice (1-6, Q to quit, press Enter for Normal): Q
+
+Goodbye.
 ```
 
-**Result:** All user-created switches removed, system returned to clean state.
+**Result:** All user-created switches removed, system returned to clean state. The script returns to the mode menu after Nuke-all finishes — `Q` here exits; any other choice keeps going without restarting the script.
 
 ---
 
@@ -621,6 +637,8 @@ Using a custom VLAN set defined in `vlan_sets.json`:
 ```powershell
 PS C:\DPX_VLAN_MAESTRO\src> .\vlan_maestro.ps1
 
+# ... select mode (Normal) ...
+
 Available VLAN sets:
 1. 4Wall (7 VLANs)
 2. Dapper (10 VLANs)
@@ -631,7 +649,7 @@ Available VLAN sets:
 Enter choice (1-6): 6
 Using StudioB VLAN set (3 VLANs).
 
-# ... select mode, NIC, switch name ...
+# ... NIC, switch name ...
 
 Enter the fourth octet for IP addresses: 10
 

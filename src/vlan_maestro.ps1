@@ -26,7 +26,7 @@
 #
 # ================================================================================
 # PROJECT: DPX_VLAN_MAESTRO
-# VERSION: 2.6.4
+# VERSION: 2.7.0
 # ================================================================================
 #
 # [File-specific information]
@@ -96,7 +96,7 @@ Write-Host "║                           ██║  ██║██╔═══
 Write-Host "║                           ██████╔╝██║     ██╔╝ ██╗                           ║" -ForegroundColor Cyan
 Write-Host "║                           ╚═════╝ ╚═╝     ╚═╝  ╚═╝                           ║" -ForegroundColor Cyan
 Write-Host "║                                                                              ║" -ForegroundColor Cyan
-Write-Host "║                             VLAN MAESTRO v2.6.4                              ║" -ForegroundColor Yellow
+Write-Host "║                             VLAN MAESTRO v2.7.0                              ║" -ForegroundColor Yellow
 Write-Host "║                      Hyper-V Network Configuration Tool                      ║" -ForegroundColor Yellow
 Write-Host "╚══════════════════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
 Write-Host ""
@@ -107,7 +107,7 @@ Clear-Host
 
 # Warning Message
 Write-Host "╔══════════════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-Write-Host "║                             VLAN MAESTRO v2.6.4                              ║" -ForegroundColor Yellow
+Write-Host "║                             VLAN MAESTRO v2.7.0                              ║" -ForegroundColor Yellow
 Write-Host "║                      Hyper-V Network Configuration Tool                      ║" -ForegroundColor Yellow
 Write-Host "╠══════════════════════════════════════════════════════════════════════════════╣" -ForegroundColor Red
 Write-Host "║                              ⚠️  WARNING ⚠️                                    ║" -ForegroundColor Red
@@ -558,115 +558,13 @@ $hardcodedDesert = @{
     subnet = "255.255.255.0"
 }
 
-# Load VLAN sets from external JSON file
+# Path to the facility VLAN/IP config file (loaded fresh each time through
+# the main menu loop below, so schema edits made via mode 5 are visible to
+# the very next facility-selection prompt in the same session).
 $vlanConfigPath = Join-Path $PSScriptRoot "vlan_sets.json"
-if (Test-Path $vlanConfigPath) {
-    try {
-        $vlanConfig = Get-Content $vlanConfigPath -Raw | ConvertFrom-Json
-        $vlans4Wall = $vlanConfig.vlanSets."4Wall"
-        $vlansDapper = $vlanConfig.vlanSets.Dapper
-        $vlansDesert = $vlanConfig.vlanSets.Desert
-        Write-Host "Loaded VLAN configurations from $vlanConfigPath"
-    }
-    catch {
-        Write-Host "Error loading VLAN configuration file: $($_.Exception.Message)"
-        Write-Host "Falling back to built-in configurations..."
-    }
-} else {
-    Write-Host "Warning: VLAN configuration file not found at $vlanConfigPath"
-    Write-Host "Using built-in configurations..."
-}
 
-# Build dynamic VLAN set selection
-$vlanSets = @{}
-$vlanSetNames = @()
-
-# Add loaded sets to the dynamic collection
-if ($vlanConfig -and $vlanConfig.vlanSets) {
-    foreach ($setName in $vlanConfig.vlanSets.PSObject.Properties.Name) {
-        $setData = $vlanConfig.vlanSets.$setName
-        $vlanSets[$setName] = @{
-            vlans = $setData.vlans
-            ipBase = $setData.ipBase
-            ipPrompts = $setData.ipPrompts
-            ipDefaults = $setData.ipDefaults
-            subnet = $setData.subnet
-        }
-        $vlanSetNames += $setName
-    }
-} else {
-    # Fallback to hardcoded sets
-    $vlanSets["4Wall"] = $hardcoded4Wall
-    $vlanSets["Dapper"] = $hardcodedDapper
-    $vlanSets["Desert"] = $hardcodedDesert
-    $vlanSetNames = @("4Wall", "Dapper", "Desert")
-}
-
-# Prompt for VLAN set dynamically
-Write-Host "══════════════════════════════════════════════════════════════════════════════"
-Write-Host "Available VLAN sets:"
-for ($i = 0; $i -lt $vlanSetNames.Count; $i++) {
-    $setName = $vlanSetNames[$i]
-    $vlanCount = $vlanSets[$setName].vlans.Count
-    Write-Host ('{0}. {1} ({2} VLANs)' -f ($i+1), $setName, $vlanCount)
-}
-
-# Validate VLAN choice input
-do {
-    $vlanChoice = Read-Host "Enter choice (1-$($vlanSetNames.Count)):"
-    $isValidChoice = $false
-    if (![string]::IsNullOrWhiteSpace($vlanChoice)) {
-        try {
-            $num = [int]$vlanChoice
-            if ($num -ge 1 -and $num -le $vlanSetNames.Count) {
-                $isValidChoice = $true
-            }
-        } catch {
-            $isValidChoice = $false
-        }
-    }
-    if (!$isValidChoice) {
-        Write-Host "Invalid choice. Please enter a number between 1 and $($vlanSetNames.Count)." -ForegroundColor Red
-    }
-} while (!$isValidChoice)
-
-$choiceIndex = [int]$vlanChoice - 1
-
-if ($choiceIndex -ge 0 -and $choiceIndex -lt $vlanSetNames.Count) {
-    $selectedVlanSet = $vlanSetNames[$choiceIndex]
-    $selectedSetData = $vlanSets[$selectedVlanSet]
-    $vlans = $selectedSetData.vlans
-    $ipBase = $selectedSetData.ipBase
-    $ipPrompts = $selectedSetData.ipPrompts
-    $ipDefaults = $selectedSetData.ipDefaults
-    $subnetMask = $selectedSetData.subnet
-
-    # Convert CIDR to subnet mask if needed
-    if ($subnetMask.StartsWith('/')) {
-        $cidr = [int]$subnetMask.Substring(1)
-        $subnetMask = Convert-CidrToSubnetMask -cidr $cidr
-    }
-    Write-Host ('Using {0} VLAN set ({1} VLANs).' -f $selectedVlanSet, $vlans.Count)
-} else {
-    Write-Host "Invalid choice, defaulting to $($vlanSetNames[0])."
-    $selectedVlanSet = $vlanSetNames[0]
-    $selectedSetData = $vlanSets[$selectedVlanSet]
-    $vlans = $selectedSetData.vlans
-    $ipBase = $selectedSetData.ipBase
-    $ipPrompts = $selectedSetData.ipPrompts
-    $ipDefaults = $selectedSetData.ipDefaults
-    $subnetMask = $selectedSetData.subnet
-
-    # Convert CIDR to subnet mask if needed
-    if ($subnetMask.StartsWith('/')) {
-        $cidr = [int]$subnetMask.Substring(1)
-        $subnetMask = Convert-CidrToSubnetMask -cidr $cidr
-    }
-}
-
-# No longer need special case logic - using dynamic IP configuration from JSON
-
-# Define valid modes for maintainable mode selection
+# Define valid modes for maintainable mode selection. Static -- defined once,
+# outside the main menu loop.
 $validModes = @{
     "1" = @{ name = "Normal"; description = "Normal (create switch and adapters, then IP)"; ipOnly = $false; nukeAll = $false; addSingle = $false }
     "2" = @{ name = "IP only"; description = "IP only (skip creation, only assign IPs)"; ipOnly = $true; nukeAll = $false; addSingle = $false }
@@ -675,21 +573,39 @@ $validModes = @{
     "5" = @{ name = "Manage facility schemas"; description = "Add a new facility or edit an existing one's VLANs/IP config in vlan_sets.json"; ipOnly = $false; nukeAll = $false; addSingle = $false; schemaEdit = $true; updateExisting = $false }
     "6" = @{ name = "Update existing"; description = "Update existing (add only the facility's VLANs missing from an already-configured switch)"; ipOnly = $false; nukeAll = $false; addSingle = $false; schemaEdit = $false; updateExisting = $true }
 }
+
+# Modes that operate on a specific facility's VLAN/IP set (Normal, IP-only,
+# Add single VLAN, Update existing). Nuke-all and Manage-facility-schemas
+# don't need a facility selected first.
+$modesNeedingFacility = @("1", "2", "4", "6")
+
+# Main menu loop: every mode below returns here via `continue mainMenu`
+# instead of ending the script, so the tool keeps running until the user
+# explicitly chooses Quit. (issue #28)
+:mainMenu while ($true) {
+
 Write-Host "═══════════════════════════════════════"
-# Prompt for mode
+# Prompt for mode first -- before any facility/site selection, since not
+# every mode needs one (issue #28, item 1: order of operations).
 Write-Host "Select mode:"
 foreach ($key in $validModes.Keys | Sort-Object) {
     Write-Host "$key. $($validModes[$key].description)"
 }
+Write-Host "Q. Quit"
 
 # Validate mode choice input
 do {
-    $modeChoice = Read-Host 'Enter choice (1-6, press Enter for Normal):'
-    $isValidMode = ([string]::IsNullOrWhiteSpace($modeChoice) -or $validModes.ContainsKey($modeChoice))
+    $modeChoice = Read-Host 'Enter choice (1-6, Q to quit, press Enter for Normal):'
+    $isQuitChoice = ($modeChoice -match '^(?i:q(uit)?)$')
+    $isValidMode = ($isQuitChoice -or [string]::IsNullOrWhiteSpace($modeChoice) -or $validModes.ContainsKey($modeChoice))
     if (!$isValidMode) {
-        Write-Host "Invalid choice. Please enter 1-6, or press Enter for Normal." -ForegroundColor Red
+        Write-Host "Invalid choice. Please enter 1-6, Q to quit, or press Enter for Normal." -ForegroundColor Red
     }
 } while (!$isValidMode)
+
+if ($isQuitChoice) {
+    break mainMenu
+}
 
 if ([string]::IsNullOrWhiteSpace($modeChoice)) {
     $selectedMode = $validModes["1"]  # Default to Normal
@@ -702,6 +618,118 @@ $nukeAll = $selectedMode.nukeAll
 $schemaEdit = $selectedMode.schemaEdit
 $addSingle = $selectedMode.addSingle
 $updateExisting = $selectedMode.updateExisting
+Write-Host "══════════════════════════════════════════════════════════════════════════════"
+
+# Only prompt for a facility/VLAN set if the chosen mode actually needs one.
+if ($modesNeedingFacility -contains $modeChoice -or ([string]::IsNullOrWhiteSpace($modeChoice))) {
+    # Load VLAN sets from external JSON file -- reloaded fresh on every pass
+    # through the main menu loop (see $vlanConfigPath comment above).
+    $vlanConfig = $null
+    if (Test-Path $vlanConfigPath) {
+        try {
+            $vlanConfig = Get-Content $vlanConfigPath -Raw | ConvertFrom-Json
+            $vlans4Wall = $vlanConfig.vlanSets."4Wall"
+            $vlansDapper = $vlanConfig.vlanSets.Dapper
+            $vlansDesert = $vlanConfig.vlanSets.Desert
+            Write-Host "Loaded VLAN configurations from $vlanConfigPath"
+        }
+        catch {
+            Write-Host "Error loading VLAN configuration file: $($_.Exception.Message)"
+            Write-Host "Falling back to built-in configurations..."
+        }
+    } else {
+        Write-Host "Warning: VLAN configuration file not found at $vlanConfigPath"
+        Write-Host "Using built-in configurations..."
+    }
+
+    # Build dynamic VLAN set selection
+    $vlanSets = @{}
+    $vlanSetNames = @()
+
+    # Add loaded sets to the dynamic collection
+    if ($vlanConfig -and $vlanConfig.vlanSets) {
+        foreach ($setName in $vlanConfig.vlanSets.PSObject.Properties.Name) {
+            $setData = $vlanConfig.vlanSets.$setName
+            $vlanSets[$setName] = @{
+                vlans = $setData.vlans
+                ipBase = $setData.ipBase
+                ipPrompts = $setData.ipPrompts
+                ipDefaults = $setData.ipDefaults
+                subnet = $setData.subnet
+            }
+            $vlanSetNames += $setName
+        }
+    } else {
+        # Fallback to hardcoded sets
+        $vlanSets["4Wall"] = $hardcoded4Wall
+        $vlanSets["Dapper"] = $hardcodedDapper
+        $vlanSets["Desert"] = $hardcodedDesert
+        $vlanSetNames = @("4Wall", "Dapper", "Desert")
+    }
+
+    # Prompt for VLAN set dynamically
+    Write-Host "══════════════════════════════════════════════════════════════════════════════"
+    Write-Host "Available VLAN sets:"
+    for ($i = 0; $i -lt $vlanSetNames.Count; $i++) {
+        $setName = $vlanSetNames[$i]
+        $vlanCount = $vlanSets[$setName].vlans.Count
+        Write-Host ('{0}. {1} ({2} VLANs)' -f ($i+1), $setName, $vlanCount)
+    }
+
+    # Validate VLAN choice input
+    do {
+        $vlanChoice = Read-Host "Enter choice (1-$($vlanSetNames.Count)):"
+        $isValidChoice = $false
+        if (![string]::IsNullOrWhiteSpace($vlanChoice)) {
+            try {
+                $num = [int]$vlanChoice
+                if ($num -ge 1 -and $num -le $vlanSetNames.Count) {
+                    $isValidChoice = $true
+                }
+            } catch {
+                $isValidChoice = $false
+            }
+        }
+        if (!$isValidChoice) {
+            Write-Host "Invalid choice. Please enter a number between 1 and $($vlanSetNames.Count)." -ForegroundColor Red
+        }
+    } while (!$isValidChoice)
+
+    $choiceIndex = [int]$vlanChoice - 1
+
+    if ($choiceIndex -ge 0 -and $choiceIndex -lt $vlanSetNames.Count) {
+        $selectedVlanSet = $vlanSetNames[$choiceIndex]
+        $selectedSetData = $vlanSets[$selectedVlanSet]
+        $vlans = $selectedSetData.vlans
+        $ipBase = $selectedSetData.ipBase
+        $ipPrompts = $selectedSetData.ipPrompts
+        $ipDefaults = $selectedSetData.ipDefaults
+        $subnetMask = $selectedSetData.subnet
+
+        # Convert CIDR to subnet mask if needed
+        if ($subnetMask.StartsWith('/')) {
+            $cidr = [int]$subnetMask.Substring(1)
+            $subnetMask = Convert-CidrToSubnetMask -cidr $cidr
+        }
+        Write-Host ('Using {0} VLAN set ({1} VLANs).' -f $selectedVlanSet, $vlans.Count)
+    } else {
+        Write-Host "Invalid choice, defaulting to $($vlanSetNames[0])."
+        $selectedVlanSet = $vlanSetNames[0]
+        $selectedSetData = $vlanSets[$selectedVlanSet]
+        $vlans = $selectedSetData.vlans
+        $ipBase = $selectedSetData.ipBase
+        $ipPrompts = $selectedSetData.ipPrompts
+        $ipDefaults = $selectedSetData.ipDefaults
+        $subnetMask = $selectedSetData.subnet
+
+        # Convert CIDR to subnet mask if needed
+        if ($subnetMask.StartsWith('/')) {
+            $cidr = [int]$subnetMask.Substring(1)
+            $subnetMask = Convert-CidrToSubnetMask -cidr $cidr
+        }
+    }
+}
+
 Write-Host "══════════════════════════════════════════════════════════════════════════════"
 # Handle nuke all mode
 if ($nukeAll) {
@@ -720,7 +748,7 @@ if ($nukeAll) {
 
     if ($candidateSwitches.Count -eq 0) {
         Write-Host "No non-default virtual switches found. Nothing to do." -ForegroundColor Green
-        exit
+        continue mainMenu
     }
 
     Write-Host "Found $($candidateSwitches.Count) virtual switch(es) eligible for removal:"
@@ -740,7 +768,7 @@ if ($nukeAll) {
 
     if ($switchesToRemove.Count -eq 0) {
         Write-Host "All switches kept -- nothing selected for removal." -ForegroundColor Green
-        exit
+        continue mainMenu
     }
 
     Write-Host ""
@@ -751,7 +779,7 @@ if ($nukeAll) {
     $confirm = Read-Host "Are you sure you want to continue? Type 'YES' to confirm"
     if ($confirm -ne "YES") {
         Write-Host "Operation cancelled."
-        exit
+        continue mainMenu
     }
 
     foreach ($switchName in $switchesToRemove) {
@@ -779,7 +807,7 @@ if ($nukeAll) {
     }
 
     Write-Host "Nuke all operation completed."
-    exit
+    continue mainMenu
 }
 
 # Handle "Add a single VLAN" mode: one ad-hoc VLAN adapter on an existing
@@ -855,7 +883,7 @@ if ($addSingle) {
         $existingSwitches = Get-VMSwitch | Select-Object -ExpandProperty Name
         if (!$existingSwitches -or $existingSwitches.Count -eq 0) {
             Write-Host "No virtual switches found. Run Normal mode first to create one." -ForegroundColor Red
-            exit
+            continue mainMenu
         }
         Write-Host "Existing virtual switches:"
         for ($i = 0; $i -lt $existingSwitches.Count; $i++) {
@@ -930,7 +958,7 @@ if ($addSingle) {
     $applyConfirm = Read-Host "Apply this configuration? (y/N)"
     if ($applyConfirm -notmatch '^[Yy]') {
         Write-Host "Operation cancelled."
-        exit
+        continue mainMenu
     }
 
     if ($adhocApplyToSystem) {
@@ -1007,7 +1035,7 @@ if ($addSingle) {
     }
 
     Write-Host "Add single VLAN operation completed."
-    exit
+    continue mainMenu
 }
 
 # Handle "Manage facility schemas" mode: add a brand-new facility or edit
@@ -1123,7 +1151,7 @@ if ($schemaEdit) {
         # --- Edit an existing facility ---
         if ($currentFacilityNames.Count -eq 0) {
             Write-Host "No facilities defined in $vlanConfigPath yet." -ForegroundColor Red
-            exit
+            continue mainMenu
         }
         Write-Host "══════════════════════════════════════════════════════════════════════════════"
         Write-Host "Existing facilities:"
@@ -1313,7 +1341,7 @@ if ($schemaEdit) {
     }
 
     Write-Host "Schema editor operation completed."
-    exit
+    continue mainMenu
 }
 
 # Handle "Update existing" mode: reconcile an already-configured switch
@@ -1327,7 +1355,7 @@ if ($updateExisting) {
     $existingSwitches = Get-VMSwitch | Select-Object -ExpandProperty Name
     if (!$existingSwitches -or $existingSwitches.Count -eq 0) {
         Write-Host "No virtual switches found. Run Normal mode first to create one." -ForegroundColor Red
-        exit
+        continue mainMenu
     }
     Write-Host "Existing virtual switches:"
     for ($i = 0; $i -lt $existingSwitches.Count; $i++) {
@@ -1374,7 +1402,7 @@ if ($updateExisting) {
     if ($diff.ToAdd.Count -eq 0) {
         Write-Host "  Nothing to add — '$updateSwitchName' already has every VLAN in '$selectedVlanSet'." -ForegroundColor Green
         Write-Host "Update existing operation completed."
-        exit
+        continue mainMenu
     }
     Write-Host "  To be added:" -ForegroundColor Green
     foreach ($v in $diff.ToAdd) {
@@ -1387,7 +1415,7 @@ if ($updateExisting) {
     $confirmUpdate = Read-Host "Add the $($diff.ToAdd.Count) missing VLAN(s) to '$updateSwitchName'? (y/N)"
     if ($confirmUpdate -notmatch '^[Yy]') {
         Write-Host "Operation cancelled."
-        exit
+        continue mainMenu
     }
 
     foreach ($vlan in $diff.ToAdd) {
@@ -1400,7 +1428,7 @@ if ($updateExisting) {
     }
 
     Write-Host "Update existing operation completed."
-    exit
+    continue mainMenu
 }
 Write-Host "══════════════════════════════════════════════════════════════════════════════"
 if (!$ipOnly) {
@@ -1480,7 +1508,7 @@ if (!$ipOnly) {
             Write-Host "✗ Could not remove existing switch '$($switch.Name)' -- it still exists." -ForegroundColor Red
             Write-Host "  '$selectedNic' is still bound to it, so creating a new switch on this NIC would fail too." -ForegroundColor Red
             Write-Host "  Check for a VM still using this switch (see warning above, if shown) and detach it, then try again." -ForegroundColor Red
-            exit
+            continue mainMenu
         }
     }
 
@@ -1502,7 +1530,7 @@ if (!$ipOnly) {
     if (!(Get-VMSwitch -Name $switchName -ErrorAction SilentlyContinue)) {
         Write-Host "✗ Failed to create virtual switch '$switchName' on '$selectedNic'." -ForegroundColor Red
         Write-Host "  Check above for the New-VMSwitch error -- a common cause is the NIC still being bound to a switch that failed to remove." -ForegroundColor Red
-        exit
+        continue mainMenu
     }
 
     # Add virtual network adapters with delays
@@ -1787,4 +1815,10 @@ if ($useDHCP) {
 
 Write-Host ""
 Write-Host "Script completed successfully." -ForegroundColor Green
+
+Read-Host "Press Enter to return to the main menu"
+}
+
+Write-Host ""
+Write-Host "Goodbye." -ForegroundColor Cyan
 

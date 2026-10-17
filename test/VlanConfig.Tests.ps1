@@ -516,3 +516,60 @@ Describe 'hardcoded fallback matches vlan_sets.json (regression: catches drift l
         $hardcodedNormalized | Should -Be $jsonNormalized -Because "the in-script fallback for '$facilityName' has drifted from vlan_sets.json — these must stay in sync or the tool behaves differently when the JSON file is missing/corrupt"
     }
 }
+
+Describe 'Main menu loop (issue #28: mode-first ordering + persistent menu with Quit)' {
+    BeforeAll {
+        $scriptPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'src/vlan_maestro.ps1'
+        $tokens = $null
+        $parseErrors = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile($scriptPath, [ref]$tokens, [ref]$parseErrors)
+
+        $modesNeedingFacilityAssignment = $ast.FindAll({
+            param($node)
+            $node -is [System.Management.Automation.Language.AssignmentStatementAst] -and
+            $node.Left -is [System.Management.Automation.Language.VariableExpressionAst] -and
+            $node.Left.VariablePath.UserPath -eq 'modesNeedingFacility'
+        }, $true) | Select-Object -First 1
+        $script:ModesNeedingFacility = Invoke-Expression "$($modesNeedingFacilityAssignment.Extent.Text)`n`$modesNeedingFacility"
+
+        # Extract the quit-detection regex literal straight out of the
+        # $isQuitChoice assignment's source text, so this test breaks if
+        # that pattern is ever edited without updating the test alongside it.
+        $isQuitChoiceAssignment = $ast.FindAll({
+            param($node)
+            $node -is [System.Management.Automation.Language.AssignmentStatementAst] -and
+            $node.Left -is [System.Management.Automation.Language.VariableExpressionAst] -and
+            $node.Left.VariablePath.UserPath -eq 'isQuitChoice'
+        }, $true) | Select-Object -First 1
+        $literalMatch = [regex]::Match($isQuitChoiceAssignment.Extent.Text, "'([^']+)'")
+        $script:QuitPattern = $literalMatch.Groups[1].Value
+    }
+
+    It 'requires a facility/VLAN-set selection only for Normal, IP-only, Add single VLAN, and Update existing' {
+        $script:ModesNeedingFacility | Should -Contain '1'
+        $script:ModesNeedingFacility | Should -Contain '2'
+        $script:ModesNeedingFacility | Should -Contain '4'
+        $script:ModesNeedingFacility | Should -Contain '6'
+        $script:ModesNeedingFacility | Should -Not -Contain '3'
+        $script:ModesNeedingFacility | Should -Not -Contain '5'
+    }
+
+    It "'<_>' is recognized as a request to quit" -ForEach @('q', 'Q', 'quit', 'Quit', 'QUIT') {
+        $_ -match $script:QuitPattern | Should -BeTrue
+    }
+
+    It "'<_>' is NOT recognized as a request to quit" -ForEach @('1', '3', '', 'quitter', 'squit') {
+        $_ -match $script:QuitPattern | Should -BeFalse
+    }
+
+    It 'every mode-dispatch block returns to the main menu via continue, never exit, except the top-level admin check' {
+        $source = Get-Content $scriptPath -Raw
+        # Every bare "exit" statement left in the file should be the
+        # one-time administrator-privilege check that runs before the main
+        # menu loop even exists -- every other early return inside the loop
+        # must use "continue mainMenu" so the tool keeps running instead of
+        # closing the whole script out from under the user.
+        $exitLines = [regex]::Matches($source, '(?m)^\s*exit\s*$')
+        $exitLines.Count | Should -Be 1 -Because "found $($exitLines.Count) bare 'exit' statement(s); only the pre-loop administrator check should use 'exit' -- everything else should use 'continue mainMenu'"
+    }
+}
