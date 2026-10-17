@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.6.4
+
+### Fixed
+- **Real-world bug (issue #33)**, reported by a beta tester: any facility whose subnet was stored as CIDR notation in `vlan_sets.json` (e.g. `"/24"`) resolved to `0.0.0.0` instead of a real mask, making every IP on that facility invalid. Root cause: `Convert-CidrToSubnetMask` passed a `[uint32]` mask into `[IPAddress]::NetworkToHostOrder()`, which has no `UInt32` overload — PowerShell silently widened it to `Int64`, so `[BitConverter]::GetBytes()` returned 8 bytes instead of 4, with the real mask bits landing in `bytes[4..7]` while the function only read `bytes[0..3]` (always zero)
+- Rewrote `Convert-CidrToSubnetMask` to extract octets with plain bit-shift/mask arithmetic instead of going through `NetworkToHostOrder`/`BitConverter` at all — sidesteps the overload-resolution bug entirely
+- Added direct Pester unit tests for `Convert-CidrToSubnetMask` covering `/1`–`/32` (asserts never `0.0.0.0`) plus exact-value checks for common prefixes (`/8`, `/16`, `/24`, `/30`, etc.)
+
+### Added
+- **New facility: RGO** — added to `vlan_sets.json` (10 VLANs: `5_System`, `10_Server`, `20_LX`, `30_Content`, `40_NDI`, `50_KVM`, `60_DANTE`, `70_SPARE1`, `80_SPARE2`, `90_WWW`; `ipBase` `192.168.{vlan}.{fourth}`, subnet `/24`). This facility's subnet is exactly what triggered issue #33 in real beta testing, and is deliberately kept as `/24` (rather than normalized to a dotted mask like the other facilities) so it also serves as a permanent regression check that the CIDR fix actually works end-to-end
+- Updated version to 2.6.4 and ASCII art title accordingly
+
 ## v2.6.0
 
 > ⚠️ **Untested on real hardware.** This release makes Nuke-all genuinely more destructive (forces removal of VM-attached adapters, not just management-OS ones) — the keep-list parsing logic is unit-tested, but the actual forced-removal behavior against a live VM-attached switch has not been verified on a real Hyper-V host.

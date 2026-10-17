@@ -89,6 +89,24 @@
       "ipPrompts": ["third", "fourth"],
       "ipDefaults": {"third": 10},
       "subnet": "255.255.255.0"
+    },
+    "RGO": {
+      "vlans": [
+        {"Name": "5_System", "VlanId": 5},
+        {"Name": "10_Server", "VlanId": 10},
+        {"Name": "20_LX", "VlanId": 20},
+        {"Name": "30_Content", "VlanId": 30},
+        {"Name": "40_NDI", "VlanId": 40},
+        {"Name": "50_KVM", "VlanId": 50},
+        {"Name": "60_DANTE", "VlanId": 60},
+        {"Name": "70_SPARE1", "VlanId": 70},
+        {"Name": "80_SPARE2", "VlanId": 80},
+        {"Name": "90_WWW", "VlanId": 90}
+      ],
+      "ipBase": "192.168.{vlan}.{fourth}",
+      "ipPrompts": ["fourth"],
+      "ipDefaults": {},
+      "subnet": "/24"
     }
   }
 }
