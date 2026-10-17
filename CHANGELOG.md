@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.7.0
+
+> ⚠️ **Untested on real hardware.** The mode/menu-gating logic (which modes need a facility selection, the quit-regex, the "no bare `exit` left in the loop" structural guard) is unit-tested directly against the script's source via Pester. The actual interactive looping behavior — running several modes back-to-back in one PowerShell session without the script ending — has only been verified by local syntax parsing (`pwsh`'s own parser, installed for this session) and the full Pester suite passing, not by a real end-to-end run against live Hyper-V switches.
+
+### Changed
+- **Mode-first ordering + persistent main menu with Quit (issue #28)**: the script now asks "what do you want to do?" before "which facility/site?" — a facility/VLAN-set is only prompted for when the chosen mode actually needs one (Normal, IP-only, Add single VLAN, Update existing). Nuke-all and Manage facility schemas skip straight past that prompt, same as before this change existed for them conceptually, just now it's explicit instead of asked-and-ignored
+- Every mode now returns to the main menu when it finishes (or hits an early "nothing to do"/cancelled/error exit) instead of ending the whole script — you can run Nuke-all, then Normal, then Update existing, etc., all in one session without restarting `vlan_maestro.bat`
+- Added a `Q` / `Quit` option to the mode menu as the only way to actually end the script now (the previous top-level administrator-privilege check is the sole remaining case that still uses a bare `exit`, since it runs before the menu loop even starts)
+- The facility config (`vlan_sets.json`) is now reloaded fresh on every pass through the main menu, so a facility added/edited via "Manage facility schemas" shows up immediately the next time a facility-selection prompt appears in the same session, without restarting the tool
+- Added a "Mode table sanity"-style structural test asserting exactly one bare `exit` remains in the whole script (the admin check) — this is meant to catch a future edit accidentally reintroducing a hard `exit` inside a mode handler instead of `continue mainMenu`
+- Updated version to 2.7.0 and ASCII art title accordingly
+
 ## v2.6.4
 
 ### Fixed
