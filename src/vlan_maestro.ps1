@@ -26,7 +26,7 @@
 #
 # ================================================================================
 # PROJECT: DPX_VLAN_MAESTRO
-# VERSION: 2.6.0
+# VERSION: 2.6.4
 # ================================================================================
 #
 # [File-specific information]
@@ -96,7 +96,7 @@ Write-Host "║                           ██║  ██║██╔═══
 Write-Host "║                           ██████╔╝██║     ██╔╝ ██╗                           ║" -ForegroundColor Cyan
 Write-Host "║                           ╚═════╝ ╚═╝     ╚═╝  ╚═╝                           ║" -ForegroundColor Cyan
 Write-Host "║                                                                              ║" -ForegroundColor Cyan
-Write-Host "║                             VLAN MAESTRO v2.6.0                              ║" -ForegroundColor Yellow
+Write-Host "║                             VLAN MAESTRO v2.6.4                              ║" -ForegroundColor Yellow
 Write-Host "║                      Hyper-V Network Configuration Tool                      ║" -ForegroundColor Yellow
 Write-Host "╚══════════════════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
 Write-Host ""
@@ -107,7 +107,7 @@ Clear-Host
 
 # Warning Message
 Write-Host "╔══════════════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-Write-Host "║                             VLAN MAESTRO v2.6.0                              ║" -ForegroundColor Yellow
+Write-Host "║                             VLAN MAESTRO v2.6.4                              ║" -ForegroundColor Yellow
 Write-Host "║                      Hyper-V Network Configuration Tool                      ║" -ForegroundColor Yellow
 Write-Host "╠══════════════════════════════════════════════════════════════════════════════╣" -ForegroundColor Red
 Write-Host "║                              ⚠️  WARNING ⚠️                                    ║" -ForegroundColor Red
@@ -430,12 +430,21 @@ function Resolve-SwitchesToRemove {
     return @($CandidateSwitches | Where-Object { $keepNames -notcontains $_ })
 }
 
-# Function to convert CIDR notation to subnet mask
+# Function to convert CIDR notation to subnet mask. Extracts octets with
+# plain bit math instead of [IPAddress]::NetworkToHostOrder() -- that method
+# has no UInt32 overload, so PowerShell silently widened $mask to Int64,
+# which made [BitConverter]::GetBytes() return 8 bytes instead of 4 and put
+# every real mask bit in bytes[4..7], leaving bytes[0..3] (what the old code
+# read) always zero. Every CIDR subnet (e.g. "/24") resolved to 0.0.0.0
+# instead of a real mask (issue #33).
 function Convert-CidrToSubnetMask {
     param([int]$cidr)
     $mask = [uint32]::MaxValue -shl (32 - $cidr)
-    $bytes = [BitConverter]::GetBytes([IPAddress]::NetworkToHostOrder($mask))
-    return "{0}.{1}.{2}.{3}" -f $bytes[0], $bytes[1], $bytes[2], $bytes[3]
+    $octet1 = ($mask -shr 24) -band 0xFF
+    $octet2 = ($mask -shr 16) -band 0xFF
+    $octet3 = ($mask -shr 8) -band 0xFF
+    $octet4 = $mask -band 0xFF
+    return "{0}.{1}.{2}.{3}" -f $octet1, $octet2, $octet3, $octet4
 }
 
 # Input validation functions

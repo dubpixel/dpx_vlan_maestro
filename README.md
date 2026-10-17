@@ -86,7 +86,7 @@
 
 DPX_VLAN_MAESTRO is a comprehensive PowerShell automation script for Windows Hyper-V environments. It simplifies the complex process of setting up virtual network infrastructure by creating virtual switches, VLAN-tagged network adapters, and assigning static IP addresses according to facility-specific configurations.
 
-The script supports multiple facility types (4Wall, Dapper, Desert, HIVE, and custom configurations) with dynamic VLAN set loading from external JSON files. It includes robust validation, safety features, and multiple operation modes to handle different network management scenarios.
+The script supports multiple facility types (4Wall, Dapper, Desert, HIVE, RGO, and custom configurations) with dynamic VLAN set loading from external JSON files. It includes robust validation, safety features, and multiple operation modes to handle different network management scenarios.
 
 **Key Capabilities:**
 - **Dynamic Configuration**: Load VLAN sets from external JSON files without code changes
@@ -102,7 +102,7 @@ The script supports multiple facility types (4Wall, Dapper, Desert, HIVE, and cu
 
 ### 🔧 **Dynamic VLAN Configuration**
 - Load facility-specific VLAN sets from external JSON files
-- Support for multiple facility types (4Wall, Dapper, Desert, HIVE, custom)
+- Support for multiple facility types (4Wall, Dapper, Desert, HIVE, RGO, custom)
 - No code changes required to add new configurations
 
 ### 🛡️ **Advanced IP Management**
@@ -369,7 +369,7 @@ At completion, the script displays:
 
 1. **Select VLAN Set**
    - Script automatically loads all available VLAN sets from `vlan_sets.json`
-   - Choose from any configured facility (4Wall, Dapper, Desert, HIVE, or custom sets)
+   - Choose from any configured facility (4Wall, Dapper, Desert, HIVE, RGO, or custom sets)
    - Each set contains predefined VLAN configurations
 
 2. **Select Mode**
@@ -758,7 +758,7 @@ If you encounter issues not covered here:
 - [x] Subnet-aware IP validation
 - [x] Configuration summary output
 - [x] Dynamic IP prompting with defaults
-- [x] Multiple facility support (4Wall, Dapper, Desert, HIVE, custom)
+- [x] Multiple facility support (4Wall, Dapper, Desert, HIVE, RGO, custom)
 - [x] DHCP vs Static IP configuration choice
 
 ### 🔄 **In Progress**

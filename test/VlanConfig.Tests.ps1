@@ -367,6 +367,40 @@ Describe 'Resolve-SwitchesToRemove (Nuke-all keep-list parsing, issue follow-up 
     }
 }
 
+Describe 'Convert-CidrToSubnetMask (issue #33: CIDR subnets resolved to 0.0.0.0)' {
+    BeforeAll {
+        $scriptPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'src/vlan_maestro.ps1'
+        $tokens = $null
+        $parseErrors = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile($scriptPath, [ref]$tokens, [ref]$parseErrors)
+        $functionAsts = $ast.FindAll({
+            param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst]
+        }, $true)
+        foreach ($fn in $functionAsts) {
+            . ([scriptblock]::Create($fn.Extent.Text))
+        }
+    }
+
+    It 'never returns 0.0.0.0 for any real-world CIDR prefix' -ForEach @(1..32) {
+        Convert-CidrToSubnetMask -cidr $_ | Should -Not -Be '0.0.0.0'
+    }
+
+    It "converts '<_.cidr>' to '<_.mask>'" -ForEach @(
+        @{ cidr = 8;  mask = '255.0.0.0' }
+        @{ cidr = 16; mask = '255.255.0.0' }
+        @{ cidr = 20; mask = '255.255.240.0' }
+        @{ cidr = 22; mask = '255.255.252.0' }
+        @{ cidr = 23; mask = '255.255.254.0' }
+        @{ cidr = 24; mask = '255.255.255.0' }
+        @{ cidr = 25; mask = '255.255.255.128' }
+        @{ cidr = 30; mask = '255.255.255.252' }
+        @{ cidr = 31; mask = '255.255.255.254' }
+        @{ cidr = 32; mask = '255.255.255.255' }
+    ) {
+        Convert-CidrToSubnetMask -cidr $_.cidr | Should -Be $_.mask
+    }
+}
+
 Describe 'Mode table sanity (regression: catches copy-paste flag mistakes across modes)' {
     BeforeAll {
         $scriptPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'src/vlan_maestro.ps1'
