@@ -26,7 +26,7 @@
 #
 # ================================================================================
 # PROJECT: DPX_VLAN_MAESTRO
-# VERSION: 2.6.4
+# VERSION: 2.6.5
 # ================================================================================
 #
 # [File-specific information]
@@ -96,7 +96,7 @@ Write-Host "║                           ██║  ██║██╔═══
 Write-Host "║                           ██████╔╝██║     ██╔╝ ██╗                           ║" -ForegroundColor Cyan
 Write-Host "║                           ╚═════╝ ╚═╝     ╚═╝  ╚═╝                           ║" -ForegroundColor Cyan
 Write-Host "║                                                                              ║" -ForegroundColor Cyan
-Write-Host "║                             VLAN MAESTRO v2.6.4                              ║" -ForegroundColor Yellow
+Write-Host "║                             VLAN MAESTRO v2.6.5                              ║" -ForegroundColor Yellow
 Write-Host "║                      Hyper-V Network Configuration Tool                      ║" -ForegroundColor Yellow
 Write-Host "╚══════════════════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
 Write-Host ""
@@ -107,7 +107,7 @@ Clear-Host
 
 # Warning Message
 Write-Host "╔══════════════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-Write-Host "║                             VLAN MAESTRO v2.6.4                              ║" -ForegroundColor Yellow
+Write-Host "║                             VLAN MAESTRO v2.6.5                              ║" -ForegroundColor Yellow
 Write-Host "║                      Hyper-V Network Configuration Tool                      ║" -ForegroundColor Yellow
 Write-Host "╠══════════════════════════════════════════════════════════════════════════════╣" -ForegroundColor Red
 Write-Host "║                              ⚠️  WARNING ⚠️                                    ║" -ForegroundColor Red
@@ -1510,6 +1510,28 @@ if (!$ipOnly) {
         Write-Host "Adding virtual adapter '$($vlan.Name)'..."
         Add-VMNetworkAdapter -ManagementOS -Name $vlan.Name -SwitchName $switchName
         Start-Countdown -seconds $delay
+
+        # Verify the adapter actually landed before tagging its VLAN. The
+        # very first adapter added right after New-VMSwitch can lose a race
+        # with vmms still finishing switch provisioning -- Add-VMNetworkAdapter
+        # returns cleanly (so the Write-Host above is no guarantee of
+        # success) but the adapter never shows up, and the subsequent
+        # Set-VMNetworkAdapterVlan silently targets nothing (issue #36).
+        # Retry a couple of times with a short extra delay before giving up.
+        $adapterRetries = 0
+        while (!(Get-VMNetworkAdapter -ManagementOS -Name $vlan.Name -ErrorAction SilentlyContinue) -and $adapterRetries -lt 3) {
+            $adapterRetries++
+            Write-Host "  Adapter '$($vlan.Name)' not showing up yet, retrying ($adapterRetries/3)..." -ForegroundColor Yellow
+            Start-Sleep -Seconds 3
+            Add-VMNetworkAdapter -ManagementOS -Name $vlan.Name -SwitchName $switchName
+            Start-Countdown -seconds $delay
+        }
+
+        if (!(Get-VMNetworkAdapter -ManagementOS -Name $vlan.Name -ErrorAction SilentlyContinue)) {
+            Write-Host "✗ Failed to create adapter '$($vlan.Name)' after $adapterRetries retries -- skipping its VLAN assignment." -ForegroundColor Red
+            continue
+        }
+
         Write-Host "Setting VLAN ID $($vlan.VlanId) for '$($vlan.Name)'..."
         Set-VMNetworkAdapterVlan -VMNetworkAdapterName $vlan.Name -VlanId $vlan.VlanId -Access -ManagementOS
         Start-Countdown -seconds $delay
