@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.6.5
+
+> ⚠️ **Untested on real hardware.** The retry logic below is reasoned from the existing project pattern (verify-before-continue, already used for switch create/remove and IP-adapter availability) but has not yet been confirmed against a live Hyper-V host.
+
+### Fixed
+- **Real-world bug (issue #36)**, reported by a beta tester: the first VLAN adapter in a facility (e.g. `196_Engineering` in 4Wall) would be logged as created but never actually show up on the switch. Root cause: `Add-VMNetworkAdapter` for the very first adapter can lose a race with `vmms` still finishing switch provisioning right after `New-VMSwitch` returns — the cmdlet returns cleanly (so the `Write-Host` log line is no guarantee of success) but the adapter never lands, and the subsequent `Set-VMNetworkAdapterVlan` silently targets nothing
+- Each adapter add in the main creation loop now verifies with `Get-VMNetworkAdapter -ManagementOS` before tagging its VLAN, retrying up to 3 times with a short delay if it's missing, and skipping that VLAN's tag step with a clear error if it still never appears — matching the verify-before-continuing pattern already used for switch create/remove
+- Updated version to 2.6.5 and ASCII art title accordingly
+
 ## v2.6.4
 
 ### Fixed
